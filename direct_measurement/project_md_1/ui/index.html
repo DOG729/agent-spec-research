@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dungeon Runner</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 1.5rem;
+      background: #1a1a2e;
+      color: #eee;
+    }
+    h1 { margin-top: 0; color: #e94560; }
+    section {
+      background: #16213e;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    h2 { margin-top: 0; font-size: 1rem; color: #a8dadc; }
+    .stat-row { margin: 0.25rem 0; }
+    .hp-bar {
+      background: #333;
+      border-radius: 4px;
+      height: 12px;
+      margin-top: 0.25rem;
+    }
+    .hp-fill {
+      background: #e94560;
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.3s;
+    }
+    button {
+      background: #e94560;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 0.5rem 1rem;
+      margin: 0.25rem;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    button:hover { background: #c73652; }
+    button:disabled { background: #555; cursor: not-allowed; }
+    .btn-secondary { background: #0f3460; }
+    .btn-secondary:hover { background: #1a4a7a; }
+    .btn-danger { background: #533483; }
+    .btn-danger:hover { background: #6b44a3; }
+    .inventory-item, .enemy-item, .exit-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin: 0.5rem 0;
+    }
+    #message {
+      padding: 0.75rem;
+      border-radius: 4px;
+      margin-bottom: 1rem;
+      display: none;
+    }
+    #message.info { background: #0f3460; display: block; }
+    #message.error { background: #7b2d26; display: block; }
+  </style>
+</head>
+<body>
+  <h1>Dungeon Runner</h1>
+  <div id="message"></div>
+
+  <section id="status">
+    <h2>Статус</h2>
+    <div class="stat-row">Комната: <span id="room-desc">—</span></div>
+    <div class="stat-row">
+      HP: <span id="hp">—</span> / <span id="max-hp">—</span>
+      <div class="hp-bar"><div class="hp-fill" id="hp-fill"></div></div>
+    </div>
+    <div class="stat-row">Уровень: <span id="level">—</span></div>
+    <div class="stat-row">XP: <span id="xp">—</span> (до след. уровня: <span id="xp-next">—</span>)</div>
+    <div class="stat-row">Золото: <span id="gold">0</span></div>
+  </section>
+
+  <section id="exits-section">
+    <h2>Выходы</h2>
+    <div id="exits"></div>
+  </section>
+
+  <section id="enemies-section">
+    <h2>Враги</h2>
+    <div id="enemies"></div>
+  </section>
+
+  <section id="inventory-section">
+    <h2>Инвентарь</h2>
+    <div id="inventory"></div>
+  </section>
+
+  <section>
+    <button class="btn-danger" id="reset-btn">Сброс</button>
+  </section>
+
+  <script>
+    const messageEl = document.getElementById('message');
+
+    function showMessage(text, type = 'info') {
+      messageEl.textContent = text;
+      messageEl.className = type;
+    }
+
+    async function fetchStatus() {
+      const res = await fetch('/status');
+      if (!res.ok) throw new Error('Failed to load status');
+      return res.json();
+    }
+
+    async function postAction(url) {
+      const res = await fetch(url, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+
+    function renderStatus(data) {
+      document.getElementById('room-desc').textContent = data.room;
+      document.getElementById('hp').textContent = data.hp;
+      document.getElementById('max-hp').textContent = data.maxHp;
+      document.getElementById('level').textContent = data.level;
+      document.getElementById('xp').textContent = data.xp;
+      document.getElementById('xp-next').textContent = data.xpToNextLevel;
+      document.getElementById('gold').textContent = data.gold ?? 0;
+
+      const pct = Math.max(0, Math.min(100, (data.hp / data.maxHp) * 100));
+      document.getElementById('hp-fill').style.width = pct + '%';
+
+      const exitsEl = document.getElementById('exits');
+      exitsEl.innerHTML = '';
+      if (data.exits) {
+        for (const [direction, roomId] of Object.entries(data.exits)) {
+          const div = document.createElement('div');
+          div.className = 'exit-item';
+          const btn = document.createElement('button');
+          btn.className = 'btn-secondary';
+          btn.textContent = `${direction} → ${roomId}`;
+          btn.addEventListener('click', () => handleRoom(roomId));
+          div.appendChild(btn);
+          exitsEl.appendChild(div);
+        }
+      }
+      if (!exitsEl.children.length) {
+        exitsEl.textContent = 'Нет выходов';
+      }
+
+      const enemiesEl = document.getElementById('enemies');
+      enemiesEl.innerHTML = '';
+      if (data.enemies && data.enemies.length) {
+        for (const enemyId of data.enemies) {
+          const div = document.createElement('div');
+          div.className = 'enemy-item';
+          const label = document.createElement('span');
+          label.textContent = enemyId;
+          const btn = document.createElement('button');
+          btn.textContent = 'Атаковать';
+          btn.addEventListener('click', () => handleRoom(data.currentRoomId));
+          div.appendChild(label);
+          div.appendChild(btn);
+          enemiesEl.appendChild(div);
+        }
+      } else {
+        enemiesEl.textContent = 'Нет врагов';
+      }
+
+      const inventoryEl = document.getElementById('inventory');
+      inventoryEl.innerHTML = '';
+      if (data.inventory && data.inventory.length) {
+        for (const itemId of data.inventory) {
+          const div = document.createElement('div');
+          div.className = 'inventory-item';
+          const label = document.createElement('span');
+          label.textContent = itemId;
+          const btn = document.createElement('button');
+          btn.textContent = 'Использовать';
+          btn.addEventListener('click', () => handleItem(itemId));
+          div.appendChild(label);
+          div.appendChild(btn);
+          inventoryEl.appendChild(div);
+        }
+      } else {
+        inventoryEl.textContent = 'Пусто';
+      }
+    }
+
+    async function refresh() {
+      const data = await fetchStatus();
+      renderStatus(data);
+      return data;
+    }
+
+    async function handleRoom(roomId) {
+      try {
+        const result = await postAction(`/room/${encodeURIComponent(roomId)}`);
+        let msg = result.alive ? 'Бой завершён.' : 'Вы погибли!';
+        if (result.loot && result.loot.length) {
+          msg += ' Лут: ' + result.loot.join(', ');
+        }
+        if (result.levelUp) msg += ' Повышение уровня!';
+        showMessage(msg, result.alive ? 'info' : 'error');
+        await refresh();
+      } catch (err) {
+        showMessage(err.message, 'error');
+      }
+    }
+
+    async function handleItem(itemId) {
+      try {
+        await postAction(`/item/${encodeURIComponent(itemId)}`);
+        showMessage(`Использован предмет: ${itemId}`);
+        await refresh();
+      } catch (err) {
+        showMessage(err.message, 'error');
+      }
+    }
+
+    document.getElementById('reset-btn').addEventListener('click', async () => {
+      try {
+        await postAction('/init');
+        showMessage('Игра сброшена');
+        await refresh();
+      } catch (err) {
+        showMessage(err.message, 'error');
+      }
+    });
+
+    refresh().catch(err => showMessage(err.message, 'error'));
+  </script>
+</body>
+</html>

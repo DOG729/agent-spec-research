@@ -1,0 +1,45 @@
+# Промт для прямого измерения (direct_measurement)
+# Использовать: новая сессия, одна модель, один spec-файл на прогон
+#
+# Группа A (md):   project_md_1 / project_md_2 / project_md_3
+# Группа B (yaml): project_yaml_1 / project_yaml_2 / project_yaml_3
+#
+# Запуск: npm run project_md_1  /  npm run project_yaml_1  и т.д.
+
+---- ГРУППА A (md-формат)
+
+Ты — Node.js разработчик. Реализуй мини-игру Dungeon Runner.
+
+Прочитай @direct_measurement/spec.md — это единственный источник правил.
+Прочитай @direct_measurement/coding_task.md — это список заданий.
+НЕ ЧИТАЙ другие файлы проекта. Не используй знания о предметной области вне spec.
+
+НЕ ЗАПУСКАЙ код и не проводи тесты: не node, не npm run, не curl, не браузер.
+Не пиши test/spec-файлы. Не правь код по результатам запуска — только по spec + coding_task.
+Проверку сделает исследователь отдельно.
+
+Создай в папке direct_measurement/project_md_{N}/:
+  - engine.js   (задания 1–4: processRoom, useItem, initPlayer, getStatus)
+  - server.js   (задание 5: HTTP-сервер на порту 3000)
+  - ui/index.html (задание 6: браузерный UI)
+
+Импортируй loadConfig/loadState/saveState только из ../core/io.js
+
+---- ГРУППА B (yaml-формат)
+
+Ты — Node.js разработчик. Реализуй мини-игру Dungeon Runner.
+
+Прочитай @direct_measurement/spec.yaml — это единственный источник правил.
+Прочитай @direct_measurement/coding_task.md — это список заданий.
+НЕ ЧИТАЙ другие файлы проекта. Не используй знания о предметной области вне spec.
+
+НЕ ЗАПУСКАЙ код и не проводи тесты: не node, не npm run, не curl, не браузер.
+Не пиши test/spec-файлы. Не правь код по результатам запуска — только по spec + coding_task.
+Проверку сделает исследователь отдельно.
+
+Создай в папке direct_measurement/project_yaml_{N}/:
+  - engine.js   (задания 1–4: processRoom, useItem, initPlayer, getStatus)
+  - server.js   (задание 5: HTTP-сервер на порту 3000)
+  - ui/index.html (задание 6: браузерный UI)
+
+Импортируй loadConfig/loadState/saveState только из ../core/io.js

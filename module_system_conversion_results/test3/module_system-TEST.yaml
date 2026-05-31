@@ -1,0 +1,212 @@
+conforms_to:
+  standard: yaml_spec_convention-mini.yaml
+  convention_version: 1
+version: 2
+name: navigator-module-system
+stack:
+  php: ">=8.2"
+  laravel: "12.x/13.x"
+  filament: "5.x"
+dirs:
+  root: modules/
+  structure:
+    - path: modules/<ModuleName>/module.json
+      required: true
+      purpose: module metadata and contract
+    - path: modules/<ModuleName>/env.json
+      required: false
+      purpose: typed UI setting defaults
+    - path: modules/<ModuleName>/Providers/*ServiceProvider.php
+      purpose: module service providers
+    - path: modules/<ModuleName>/Database/Migrations/*.php
+      purpose: module migrations
+    - path: modules/<ModuleName>/Database/Seeders/*.php
+      required: false
+      purpose: module seeders
+    - path: modules/<ModuleName>/Filament/Admin/Resources/*
+      purpose: Filament admin resources
+    - path: modules/<ModuleName>/Filament/Settings/*
+      purpose: Filament settings UI
+    - path: modules/<ModuleName>/Filament/Install.php
+      required: false
+      purpose: wizard install UI
+  path_contract:
+    current_expected_db_value: modules/<ModuleName>
+    filesystem_resolution: "Module::getFullPath() -> base_path(path)"
+    warning: keep DB paths consistent across seeders, installer, and autodiscovery
+body:
+  config_layers:
+    purpose:
+      metadata_contract: module identity, dependencies, providers, navigation, migrations
+      feature_flags_behavior: UI-editable config with file defaults and DB overrides
+      runtime_operational_values: dynamic key-value data stored by modules at runtime
+    source_of_truth_defaults:
+      metadata_contract: module.json
+      feature_flags_behavior: env.json
+      runtime_operational_values: module_settings table
+    runtime_overrides:
+      metadata_contract: none
+      feature_flags_behavior: modules.env JSON column
+      runtime_operational_values: module_settings table rows
+    read_priority:
+      feature_flags_behavior:
+        - if a key exists in modules.env, use the DB value
+        - otherwise use the env.json default value
+    write_behavior:
+      feature_flags_behavior:
+        - UI saves only to modules.env
+        - UI never overwrites env.json
+    boundaries:
+      - use moduleConfig(name, key, default) for module.json metadata
+      - use moduleEnv(name, key, default) for env.json defaults with modules.env overrides
+      - use moduleSetting(name, key, default) for module_settings runtime values
+      - do not duplicate keys between env layer and module_settings without a clear reason
+    supported_types:
+      - text
+      - textarea
+      - checkbox
+      - radio
+      - select
+      - multiselect
+      - file
+      - multifile
+  module_manifest:
+    required:
+      - "name: string"
+      - "providers: string[]"
+    commonly_used:
+      - display_name
+      - description
+      - version
+      - priority
+      - "is_core: bool, read from JSON rather than DB"
+      - dependencies.required
+      - dependencies.optional
+      - dependencies.conflicts
+      - navigation.items
+      - migrations.path
+      - seeders[]
+      - install
+      - skip_install
+    notes:
+      - slug is legacy metadata and is not required by runtime
+  db_schema:
+    modules:
+      purpose: registered module records and lifecycle state
+      fields:
+        - "name: unique"
+        - version
+        - is_active
+        - priority
+        - "env: json user overrides for env.json"
+        - path
+        - namespace
+        - installed_at
+      index:
+        - [is_active, priority]
+      constraints: []
+      notes:
+        - is_core is read from module.json, not from the modules table
+    module_settings:
+      purpose: flexible runtime key-value settings per module
+      fields:
+        - module_id
+        - key
+        - value
+        - "type: string|boolean|integer|json"
+        - description
+        - is_public
+      index: []
+      constraints:
+        - unique(module_id, key)
+      notes:
+        - used for dynamic parameters stored by the module in DB
+        - does not replace env.json
+    removed:
+      - module_dependencies table
+      - modules.slug column
+      - modules.is_core column
+      - modules.config column, replaced by modules.env
+  core_services:
+    ModuleInstallerService:
+      file: app/Services/ModuleInstallerService.php
+      methods:
+        - install(moduleName, activate=true)
+        - prepareForWizardInstall(moduleName)
+        - finalizeWizardInstall(moduleName)
+        - uninstall(moduleName, rollbackMigrations=false)
+      behavior:
+        - runs migrations and seeders from module.json
+        - creates DB record via firstOrCreate
+        - activates module
+        - schedules cache rebuild
+    ModuleAutoDiscoveryService:
+      file: app/Services/ModuleAutoDiscoveryService.php
+      methods: []
+      behavior:
+        - scans filesystem modules and syncs DB records
+        - updates version, priority, and path
+        - provides active module providers cache from module.json
+    ModuleNavigationService:
+      file: app/Services/ModuleNavigationService.php
+      methods: []
+      behavior:
+        - builds navigation from module.json navigation config
+        - uses cache key module_navigation_items
+  integration:
+    provider: app/Providers/Filament/AdminPanelProvider.php
+    behavior:
+      - active modules from DB are used to discover Filament resources, pages, and widgets by module path and namespace
+      - fallback without DB scans filesystem core modules
+    actions:
+      - install_wizard for modules with install true
+      - install_from_fs for modules without wizard
+      - grouped activate, deactivate, clear cache, edit, and delete actions
+    notes:
+      - main module identity fields are informational in production and should not be freely edited
+    resource: app/Filament/Admin/Resources/ModuleResource.php
+  helpers:
+    file: bootstrap/helpers.php
+    structure:
+      - bootstrap/helpers/lang.php
+      - bootstrap/helpers/module.php
+      - bootstrap/helpers/media.php
+      - bootstrap/helpers/error.php
+    key_functions:
+      - isModule(name)
+      - getModule(name)
+      - getActiveModules()
+      - moduleConfig(name, key, default)
+      - moduleEnv(name, key, default)
+      - moduleSetting(name, key, default)
+      - getModuleDependencies(name, type?)
+      - clearModulesCache()
+  caching:
+    keys:
+      - module_providers_discovery
+      - module_navigation_items
+      - active_modules
+      - module_active_<Name>
+    invalidate_after:
+      - install
+      - uninstall
+      - activate
+      - deactivate
+      - metadata changes
+  known_constraints:
+    - inconsistent path format breaks module.json lookup, env.json lookup, and Filament autodiscovery
+    - namespace is runtime-critical for Filament discovery
+    - dependencies are validated from module.json, not from DB relations
+  agent_checklist:
+    - identify the correct layer before editing module-related code
+    - confirm DB path is modules/<ModuleName> everywhere
+    - confirm namespace matches Filament discovery expectations
+    - check dependencies in module.json rather than DB
+    - invalidate or rebuild module caches after lifecycle changes
+    - verify removed schema and features are not reintroduced
+do_not:
+  - reintroduce removed DB schema or features listed in body.db_schema.removed
+  - store editable module metadata in modules.env
+  - treat modules.env as anything other than env.json override values
+  - rely on slug or is_core DB columns
+  - mix <ModuleName> and modules/<ModuleName> path formats in DB

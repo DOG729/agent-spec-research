@@ -1,0 +1,83 @@
+{
+  "name": "direct-measurement",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "LLM contract retention experiment — Dungeon Runner",
+  "scripts": {
+    "project_md_1": "node project_md_1/server.js", 
+    "project_md_2": "node project_md_2/server.js",
+    "project_md_3": "node project_md_3/server.js",
+    "project_md_4": "node project_md_4/server.js",
+    "project_yaml_1": "node project_yaml_1/server.js",
+    "project_yaml_2": "node project_yaml_2/server.js",
+    "project_yaml_3": "node project_yaml_3/server.js",
+    "project_yaml_4": "node project_yaml_4/server.js"
+  },
+  "info": {
+    "environment": "Cursor IDE Agent/Composer",
+    "temperature": "default/unknown",
+    "runs": {
+      "run1": {
+        "model": "Composer (Cursor Agent)",
+        "md": "project_md_1",
+        "yaml": "project_yaml_1",
+        "tokens_md": 153500,
+        "tokens_yaml": 86300,
+        "cvs_md": 0,
+        "cvs_yaml": 0,
+        "ui_md": "5/10",
+        "ui_yaml": "5/10"
+      },
+      "run2": {
+        "model": "GPT-5.5",
+        "reasoning": "Medium",
+        "md": "project_md_2",
+        "yaml": "project_yaml_2",
+        "tokens_md": 225169,
+        "tokens_yaml": 200205,
+        "input_md": 23608,
+        "output_md": 5465,
+        "input_yaml": 12692,
+        "output_yaml": 5241,
+        "cvs_md": 0,
+        "cvs_yaml": 0,
+        "ui_md": "2/10",
+        "ui_yaml": "6/10"
+      },
+      "run3": {
+        "model": "GPT-5.4 Nano",
+        "reasoning": "Medium",
+        "md": "project_md_3",
+        "yaml": "project_yaml_3",
+        "tokens_md": 279500,
+        "tokens_yaml": 216500,
+        "cvs_md": 0,
+        "cvs_yaml": 2,
+        "v11_yaml": true,
+        "ui_md": "2/10",
+        "ui_yaml": "2/10",
+        "f1_md": true,
+        "f1_yaml": "partial"
+      },
+      "run4": {
+        "model": "GPT-5.4 Nano",
+        "reasoning": "Low",
+        "md": "project_md_4",
+        "yaml": "project_yaml_4",
+        "tokens_md": 349500,
+        "tokens_yaml": 268100,
+        "cvs_md": 0,
+        "cvs_yaml": 0,
+        "ui_md": "2/10",
+        "ui_yaml": "2/10",
+        "f1_md": "partial",
+        "f1_yaml": true
+      }
+    },
+    "cursor": ["project_md_1", "project_yaml_1"],
+    "GPT-5.5": ["project_md_2", "project_yaml_2"],
+    "GPT-5.4 Nano Reasoning Medium": ["project_md_3", "project_yaml_3"],
+    "GPT-5.4 Nano Reasoning Low": ["project_md_4", "project_yaml_4"]
+  },
+  "license": "ISC" 
+} 

@@ -1,0 +1,38 @@
+{
+  "enemies": {
+    "goblin":   { "hp": 20, "damage": 4, "xp_reward": 10, "loot_table": ["gold_coin", "leather_scrap"] },
+    "skeleton": { "hp": 35, "damage": 7, "xp_reward": 20, "loot_table": ["bone_key", "health_potion"] },
+    "troll":    { "hp": 60, "damage": 12, "xp_reward": 40, "loot_table": ["health_potion", "gold_coin"] }
+  },
+  "items": {
+    "gold_coin":     { "name": "Gold Coin",     "effect": "currency", "value": 5  },
+    "leather_scrap": { "name": "Leather Scrap", "effect": "currency", "value": 2  },
+    "bone_key":      { "name": "Bone Key",      "effect": "unlock",   "value": 0  },
+    "health_potion": { "name": "Health Potion", "effect": "heal",     "value": 25 }
+  },
+  "rooms": {
+    "entrance": {
+      "description": "A damp stone entrance.",
+      "enemies": ["goblin", "goblin"],
+      "loot": ["gold_coin"],
+      "exits": { "north": "crypt" }
+    },
+    "crypt": {
+      "description": "Bones everywhere.",
+      "enemies": ["skeleton"],
+      "loot": ["bone_key"],
+      "exits": { "south": "entrance", "east": "throne" }
+    },
+    "throne": {
+      "description": "A crumbling throne room.",
+      "enemies": ["troll"],
+      "loot": ["health_potion"],
+      "exits": { "west": "crypt" }
+    }
+  },
+  "balance": {
+    "player_base_hp": 100,
+    "xp_per_level": 50,
+    "max_inventory": 6
+  }
+}

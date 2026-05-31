@@ -1,0 +1,176 @@
+conforms_to:
+  standard: "test/yaml_spec_convention.yaml"
+  convention_version: 1
+
+version: 2
+name: "Navigator CMS - Module System (current)"
+
+stack:
+  php: ">=8.2"
+  laravel: "12.x,13.x"
+  filament: "5.x"
+
+dirs: 
+  modules_root: "modules/"
+  module_structure:
+    - "module.json (required)"
+    - "env.json (optional, UI-driven typed settings defaults)"
+    - "Providers/*ServiceProvider.php"
+    - "Database/Migrations/*.php"
+    - "Database/Seeders/*.php (optional)"
+    - "Filament/Admin/Resources/*"
+    - "Filament/Settings/*"
+    - "Filament/Install.php (optional, wizard install)"
+
+module_json:
+  required:
+    - "name: string"
+    - "providers: string[]"
+  commonly_used:
+    - "display_name, description, version, priority"
+    - "is_core: bool"
+    - "dependencies.required|optional|conflicts"
+    - "navigation.items"
+    - "migrations.path"
+    - "seeders[]"
+    - "install: bool"
+    - "skip_install: bool"
+  notes:
+    - "slug is legacy metadata; not required by runtime."
+
+db_schema:
+  modules_table:
+    fields:
+      - "name (unique)"
+      - "version"
+      - "is_active"
+      - "priority"
+      - "env (json, user overrides for env.json values)"
+      - "path"
+      - "namespace"
+      - "installed_at"
+    index:
+      - "is_active, priority"
+  module_settings_table:
+    purpose: "Гибкие runtime-настройки модуля в формате key-value."
+    fields:
+      - "module_id"
+      - "key"
+      - "value"
+      - "type (string|boolean|integer|json)"
+      - "description"
+      - "is_public"
+    constraints:
+      - "unique(module_id, key)"
+    notes: 
+      - "Используется для динамических параметров, которые модуль хранит в БД."
+      - "Не заменяет env.json и не должен дублировать его ключи без необходимости."
+  removed:
+    - "module_dependencies table is not used."
+    - "modules.slug and modules.is_core columns are not used."
+    - "modules.config column replaced by modules.env."
+
+path_contract:
+  current_expected_db_value: "modules/<ModuleName>"
+  filesystem_resolution: "Module::getFullPath() => base_path(path)"
+  warning:
+    - "Do not mix `<ModuleName>` and `modules/<ModuleName>` in DB."
+    - "Path format must be consistent across seeder, installer, autodiscovery."
+
+env_settings_model:
+  purpose: "Флаги и конфигурационные параметры, которые определяют поведение модуля."
+  source_of_truth_defaults: "modules/<Module>/env.json"
+  runtime_overrides: "modules.env JSON column"
+  read_priority:
+    - "if key exists in modules.env -> use DB value"
+    - "else -> use env.json default `value`"
+  write_behavior:
+    - "UI saves only to modules.env"
+    - "env.json is not overwritten by UI"
+  boundaries:
+    - "env.json + modules.env: конфигурационный слой (feature flags и параметры поведения)."
+    - "module_settings: слой динамических/операционных значений модуля."
+  supported_env_types:
+    - "text"
+    - "textarea"
+    - "checkbox"
+    - "radio"
+    - "select"
+    - "multiselect"
+    - "file"
+    - "multifile"
+
+core_services:
+  module_installer_service:
+    file: "app/Services/ModuleInstallerService.php"
+    methods:
+      - "install(moduleName, activate=true)"
+      - "prepareForWizardInstall(moduleName)"
+      - "finalizeWizardInstall(moduleName)"
+      - "uninstall(moduleName, rollbackMigrations=false)"
+    behavior:
+      - "Runs module migrations/seeders from module.json."
+      - "Creates module DB record via firstOrCreate."
+      - "Activates module and schedules cache rebuild."
+
+  module_auto_discovery_service:
+    file: "app/Services/ModuleAutoDiscoveryService.php"
+    behavior:
+      - "Scans filesystem modules and syncs DB records."
+      - "Updates version/priority/path."
+      - "Provides active module providers cache from module.json."
+
+  module_navigation_service:
+    file: "app/Services/ModuleNavigationService.php"
+    behavior:
+      - "Builds module navigation from module.json navigation config."
+      - "Uses cache key module_navigation_items."
+
+admin_integration:
+  provider: "app/Providers/Filament/AdminPanelProvider.php"
+  behavior:
+    - "For active modules from DB, discovers Filament resources/pages/widgets by module path + namespace."
+    - "Fallback without DB: scans filesystem core modules."
+
+  module_resource: "app/Filament/Admin/Resources/ModuleResource.php"
+  table_actions:
+    - "install_wizard (for install:true modules)"
+    - "install_from_fs (for modules without wizard)"
+    - "grouped actions: activate/deactivate, clear cache, edit, delete"
+  notes:
+    - "Main module identity fields are informational; avoid free editing in production."
+
+helpers:
+  file: "bootstrap/helpers.php" 
+  structure:
+    - "bootstrap/helpers/lang.php"
+    - "bootstrap/helpers/module.php"
+    - "bootstrap/helpers/media.php"
+    - "bootstrap/helpers/error.php"
+  key_functions:
+    - "isModule(name)"
+    - "getModule(name)"
+    - "getActiveModules()"
+    - "moduleConfig(name, key, default) -> reads module.json config"
+    - "moduleEnv(name, key, default) -> reads modules.env with env.json fallback"
+    - "moduleSetting(name, key, default) -> reads module_settings runtime values"
+    - "getModuleDependencies(name, type?) -> reads module.json dependencies"
+    - "clearModulesCache()"
+
+caching:
+  keys:
+    - "module_providers_discovery"
+    - "module_navigation_items"
+    - "active_modules"
+    - "module_active_<Name>"
+
+known_constraints: 
+  - "If path format is inconsistent, module.json/env.json lookup and Filament autodiscovery can fail."
+  - "namespace is runtime-critical for Filament discovery."
+  - "Dependencies are validated from module.json, not from DB relations." 
+
+do_not:
+  - "Do not re-introduce module_dependencies table logic."
+  - "Do not store editable module metadata in modules.env; env is only for env.json override values."
+  - "Do not rely on slug/is_core DB columns; core flag is read from module.json."
+

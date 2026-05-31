@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dungeon Runner</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 16px; }
+      .row { display: flex; gap: 16px; flex-wrap: wrap; }
+      .card { border: 1px solid #ddd; border-radius: 8px; padding: 12px; min-width: 260px; }
+      button { margin: 4px 4px 0 0; padding: 8px 10px; cursor: pointer; }
+      ul { margin: 8px 0 0 18px; padding: 0; }
+      .muted { color: #666; font-size: 12px; }
+      .err { color: #b00020; }
+    </style>
+  </head>
+  <body>
+    <h1>Dungeon Runner</h1>
+
+    <div class="row">
+      <div class="card">
+        <h2>Статус</h2>
+        <div id="statusText" class="muted">Загрузка...</div>
+        <div id="exits"></div>
+        <div style="margin-top: 8px;">
+          <button id="resetBtn">Сброс</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Комната: враги</h2>
+        <div id="enemies"></div>
+      </div>
+
+      <div class="card">
+        <h2>Инвентарь</h2>
+        <div id="inventory"></div>
+      </div>
+    </div>
+
+    <div id="error" class="err" style="margin-top: 12px;"></div>
+
+    <script>
+      const $statusText = document.getElementById('statusText');
+      const $exits = document.getElementById('exits');
+      const $enemies = document.getElementById('enemies');
+      const $inventory = document.getElementById('inventory');
+      const $error = document.getElementById('error');
+      const $resetBtn = document.getElementById('resetBtn');
+
+      function setError(msg) {
+        $error.textContent = msg || '';
+      }
+
+      async function api(path, method = 'POST') {
+        const res = await fetch(path, { method });
+        const text = await res.text();
+        let data = null;
+        try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+        if (!res.ok) {
+          throw new Error((data && data.error) ? data.error : `HTTP ${res.status}`);
+        }
+        return data;
+      }
+
+      function renderStatus(data) {
+        setError('');
+
+        const hpLine = `HP: ${data.hp} / ${data.maxHp}`;
+        const xpLine = `Уровень: ${data.level} | XP: ${data.xp} (до следующего: ${data.xpToNextLevel})`;
+        const roomLine = `Комната: ${data.room}`;
+        $statusText.textContent = [hpLine, xpLine, roomLine].join(' | ');
+
+        $exits.innerHTML = '';
+        const exits = data.exits || {};
+        const exitKeys = Object.keys(exits);
+        if (exitKeys.length === 0) {
+          $exits.innerHTML = '<div class="muted">Выходов нет.</div>';
+        } else {
+          const wrap = document.createElement('div');
+          const title = document.createElement('div');
+          title.textContent = 'Выходы:';
+          title.className = 'muted';
+          wrap.appendChild(title);
+
+          for (const name of exitKeys) {
+            const destId = exits[name];
+            const btn = document.createElement('button');
+            btn.textContent = `Идти ${name}`;
+            btn.onclick = async () => {
+              await api(`/room/${encodeURIComponent(destId)}`, 'POST');
+              await refresh();
+            };
+            wrap.appendChild(btn);
+          }
+          $exits.appendChild(wrap);
+        }
+
+        $enemies.innerHTML = '';
+        const enemies = data.enemies || [];
+        const roomId = data.roomId;
+        if (enemies.length === 0) {
+          $enemies.innerHTML = '<div class="muted">Здесь нет врагов.</div>';
+        } else {
+          const wrap = document.createElement('div');
+          const title = document.createElement('div');
+          title.textContent = 'Враги:';
+          title.className = 'muted';
+          wrap.appendChild(title);
+
+          for (const enemyId of enemies) {
+            const btn = document.createElement('button');
+            btn.textContent = `Атаковать ${enemyId}`;
+            btn.onclick = async () => {
+              // processRoom(roomId) обрабатывает всех врагов в комнате,
+              // но UI обязан показать кнопку "Атаковать" для каждого врага.
+              await api(`/room/${encodeURIComponent(roomId)}`, 'POST');
+              await refresh();
+            };
+            wrap.appendChild(btn);
+          }
+          $enemies.appendChild(wrap);
+        }
+
+        $inventory.innerHTML = '';
+        const inv = data.inventory || [];
+        if (inv.length === 0) {
+          $inventory.innerHTML = '<div class="muted">Инвентарь пуст.</div>';
+        } else {
+          const wrap = document.createElement('div');
+          const title = document.createElement('div');
+          title.textContent = 'Предметы:';
+          title.className = 'muted';
+          wrap.appendChild(title);
+
+          const list = document.createElement('ul');
+          for (const itemId of inv) {
+            const li = document.createElement('li');
+            li.textContent = itemId + ' ';
+            const btn = document.createElement('button');
+            btn.textContent = 'Использовать';
+            btn.onclick = async () => {
+              await api(`/item/${encodeURIComponent(itemId)}`, 'POST');
+              await refresh();
+            };
+            li.appendChild(btn);
+            list.appendChild(li);
+          }
+          wrap.appendChild(list);
+          $inventory.appendChild(wrap);
+        }
+      }
+
+      async function refresh() {
+        const data = await api('/status', 'GET');
+        renderStatus(data);
+      }
+
+      $resetBtn.onclick = async () => {
+        await api('/init', 'POST');
+        await refresh();
+      };
+
+      // Start
+      refresh().catch((e) => setError(e?.message ?? String(e)));
+    </script>
+  </body>
+</html>

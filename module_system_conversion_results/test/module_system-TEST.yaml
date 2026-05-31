@@ -1,0 +1,217 @@
+conforms_to:
+  standard: test/yaml_spec_convention-mini.yaml
+  convention_version: 1
+
+version: 2
+name: navigator-module-system
+kind: domain
+applies_to:
+  - Navigator CMS modular architecture
+  - Laravel + Filament module lifecycle
+
+stack:
+  tech_stack:
+    php: ">=8.2"
+    laravel: "12.x/13.x"
+    filament: "5.x"
+  scope:
+    in_scope:
+      - creating, installing, configuring, debugging modules
+      - module.json, env.json, modules.env, module_settings
+      - ModuleInstallerService, autodiscovery, Filament admin integration
+      - module helpers and caching
+    out_of_scope: []
+  assumptions:
+    - Before changing module-related code, map the task to the correct layer (metadata / config / runtime settings) and verify path + namespace consistency.
+
+dirs:
+  root: modules/
+  structure:
+    - "<ModuleName>/module.json"
+    - "<ModuleName>/env.json"
+    - "<ModuleName>/Providers/*ServiceProvider.php"
+    - "<ModuleName>/Database/Migrations/*.php"
+    - "<ModuleName>/Database/Seeders/*.php"
+    - "<ModuleName>/Filament/Admin/Resources/*"
+    - "<ModuleName>/Filament/Settings/*"
+    - "<ModuleName>/Filament/Install.php"
+  path_contract:
+    current_expected_db_value: modules/<ModuleName>
+    filesystem_resolution: "Module::getFullPath() → base_path(path)"
+    warning: >-
+      Do not mix <ModuleName> and modules/<ModuleName> in DB.
+      Path format must be consistent across seeder, installer, and autodiscovery.
+      Inconsistent paths break module.json/env.json lookup and Filament autodiscovery.
+
+config_layers:
+  purpose: pick the correct configuration layer for each task
+  layers:
+    metadata_and_contract:
+      source: module.json
+      helper: moduleConfig(name, key, default)
+      covers:
+        - name
+        - providers
+        - dependencies
+        - navigation
+        - migrations
+    feature_flags_and_behavior:
+      source_of_truth_defaults: env.json
+      runtime_overrides: modules.env JSON column
+      helper: moduleEnv(name, key, default)
+      purpose: UI-editable config; DB wins over file
+    runtime_operational:
+      source: module_settings table
+      helper: moduleSetting(name, key, default)
+      purpose: dynamic key-value stored by module at runtime
+  read_priority: if key exists in modules.env use DB value; else use env.json default value
+  write_behavior: UI saves only to modules.env; never overwrite env.json from UI
+  boundaries: do not duplicate keys between env layer and module_settings without a clear reason
+  supported_types:
+    - text
+    - textarea
+    - checkbox
+    - radio
+    - select
+    - multiselect
+    - file
+    - multifile
+
+manifest:
+  required:
+    - "name: string"
+    - "providers: string[]"
+  commonly_used:
+    - display_name
+    - description
+    - version
+    - priority
+    - "is_core: bool (read from JSON, not DB)"
+    - dependencies.required
+    - dependencies.optional
+    - dependencies.conflicts
+    - navigation.items
+    - migrations.path
+    - seeders[]
+    - "install: bool"
+    - "skip_install: bool"
+  notes:
+    - slug is legacy metadata; not required by runtime
+
+db_schema:
+  modules:
+    purpose: module registry and activation state
+    fields:
+      name: unique
+      version: string
+      is_active: boolean
+      priority: integer
+      env: json — user overrides for env.json
+      path: string
+      namespace: string
+      installed_at: timestamp
+    index: "(is_active, priority)"
+  module_settings:
+    purpose: flexible runtime key-value settings per module
+    fields:
+      module_id: foreign key
+      key: string
+      value: mixed
+      type: "string|boolean|integer|json"
+      description: string
+      is_public: boolean
+    constraints: unique(module_id, key)
+    notes:
+      - Used for dynamic parameters the module stores in DB
+      - Does not replace env.json
+  removed:
+    - module_dependencies table
+    - modules.slug column
+    - modules.is_core column
+    - modules.config column (replaced by modules.env)
+
+core_services:
+  ModuleInstallerService:
+    file: app/Services/ModuleInstallerService.php
+    methods:
+      - install(moduleName, activate=true)
+      - prepareForWizardInstall(moduleName)
+      - finalizeWizardInstall(moduleName)
+      - uninstall(moduleName, rollbackMigrations=false)
+    behavior: >-
+      Runs migrations/seeders from module.json; creates DB record via firstOrCreate;
+      activates module; schedules cache rebuild.
+  ModuleAutoDiscoveryService:
+    file: app/Services/ModuleAutoDiscoveryService.php
+    behavior: >-
+      Scans filesystem modules and syncs DB records; updates version/priority/path;
+      provides active module providers cache from module.json.
+  ModuleNavigationService:
+    file: app/Services/ModuleNavigationService.php
+    behavior: >-
+      Builds navigation from module.json navigation config;
+      cache key module_navigation_items.
+
+integration:
+  filament_admin:
+    provider: app/Providers/Filament/AdminPanelProvider.php
+    behavior:
+      - For active modules from DB discovers Filament resources/pages/widgets by module path + namespace
+      - Fallback without DB scans filesystem core modules
+    resource: app/Filament/Admin/Resources/ModuleResource.php
+    actions:
+      - install_wizard — for install true modules
+      - install_from_fs — modules without wizard
+      - "grouped: activate/deactivate, clear cache, edit, delete"
+    notes:
+      - Production main module identity fields are informational; avoid free editing
+
+helpers:
+  file: bootstrap/helpers.php
+  structure:
+    - bootstrap/helpers/lang.php
+    - bootstrap/helpers/module.php
+    - bootstrap/helpers/media.php
+    - bootstrap/helpers/error.php
+  key_functions:
+    - isModule(name)
+    - getModule(name)
+    - getActiveModules()
+    - moduleConfig(name, key, default) — module.json
+    - moduleEnv(name, key, default) — modules.env with env.json fallback
+    - moduleSetting(name, key, default) — module_settings
+    - getModuleDependencies(name, type?) — module.json dependencies
+    - clearModulesCache()
+
+caching:
+  keys:
+    - module_providers_discovery
+    - module_navigation_items
+    - active_modules
+    - module_active_<Name>
+  invalidate_after:
+    - install
+    - uninstall
+    - activate
+    - deactivate
+    - metadata changes
+    - clearModulesCache() or admin actions
+
+known_constraints:
+  - Inconsistent path format causes lookup and Filament autodiscovery failures
+  - namespace is runtime-critical for Filament discovery
+  - Dependencies validated from module.json, not DB relations
+
+agent_checklist:
+  steps:
+    - "Identify layer: moduleConfig vs moduleEnv vs moduleSetting"
+    - Confirm DB path is modules/<ModuleName> everywhere
+    - Confirm namespace matches Filament discovery expectations
+    - Check dependencies in module.json, not DB
+    - Invalidate or rebuild module caches after lifecycle changes
+    - Verify no removed schema/features are reintroduced
+
+do_not:
+  - Re-introduce module_dependencies table logic
+  - Store editable module metadata in modules.env; env column is only for env.json override values
+  - Rely on slug / is_core DB columns; core flag comes from module.json

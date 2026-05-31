@@ -1,0 +1,11 @@
+# Composer (Cursor Agent)
+
+Твоя задача из @module_system_conversion_results/module_system.md создать документ yaml, описывающий примерно всё что в md,
+строго по спецификации @yaml_spec_convention-mini.yaml
+НЕ ЧИТАЙ ДРУГИЕ ФАЙЛЫ — создай module_system_conversion_results/test/module_system-TEST.yaml
+
+---- 2 new session
+
+Из @module_system_conversion_results/test3/module_system-TEST.yaml
+создай markdown-спецификацию: все факты.
+НЕ ЧИТАЙ другие файлы. Сохрани в module_system_conversion_results/test/module_system-REVERSE.md

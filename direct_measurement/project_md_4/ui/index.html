@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dungeon Runner</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 16px;
+      }
+      button {
+        margin: 4px;
+        padding: 8px 10px;
+        cursor: pointer;
+      }
+      pre {
+        background: #f6f6f6;
+        padding: 12px;
+        white-space: pre-wrap;
+      }
+      .row {
+        margin-bottom: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Dungeon Runner</h1>
+
+    <div class="row" id="status"></div>
+
+    <div class="row" id="exits"></div>
+    <div class="row" id="enemies"></div>
+
+    <h2>Инвентарь</h2>
+    <div id="inventory"></div>
+
+    <div class="row">
+      <button id="resetBtn">Сброс</button>
+    </div>
+
+    <script>
+      const $status = document.getElementById('status');
+      const $exits = document.getElementById('exits');
+      const $enemies = document.getElementById('enemies');
+      const $inventory = document.getElementById('inventory');
+      const $resetBtn = document.getElementById('resetBtn');
+
+      async function api(path, method = 'GET') {
+        const res = await fetch(path, { method, headers: { 'Content-Type': 'application/json' } });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Request failed');
+        return data;
+      }
+
+      function escapeHtml(s) {
+        return String(s)
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#039;');
+      }
+
+      function renderStatus(status) {
+        $status.innerHTML = `
+          <div><b>Комната:</b> ${escapeHtml(status.room)}</div>
+          <div><b>HP:</b> ${status.hp} / ${status.maxHp}</div>
+          <div><b>Уровень:</b> ${status.level}</div>
+          <div><b>XP:</b> ${status.xp}</div>
+          <div><b>XP до следующего:</b> ${status.xpToNextLevel}</div>
+        `;
+      }
+
+      function renderExits(status) {
+        const exits = status.exits || {};
+        const keys = Object.keys(exits);
+        if (keys.length === 0) {
+          $exits.innerHTML = '<b>Выходов нет.</b>';
+          return;
+        }
+
+        $exits.innerHTML = '<b>Выходы:</b><br/>';
+        for (const exitName of keys) {
+          const roomId = exits[exitName];
+          const btn = document.createElement('button');
+          btn.textContent = `Куда: ${exitName}`;
+          btn.onclick = async () => {
+            // По spec: переезд в новую комнату обрабатывается POST /room/:id.
+            await api(`/room/${encodeURIComponent(roomId)}`, 'POST');
+            await refresh();
+          };
+          $exits.appendChild(btn);
+        }
+      }
+
+      function renderEnemies(status) {
+        const enemies = status.enemies || [];
+        if (enemies.length === 0) {
+          $enemies.innerHTML = '<b>Бой:</b> нет врагов.';
+          return;
+        }
+
+        $enemies.innerHTML = '<b>Атаковать:</b><br/>';
+        const currentRoomId = status.roomId;
+        // Кнопки по спецификации — для каждого врага. Т.к. API обрабатывает вход в комнату
+        // целиком (POST /room/:id), мы вызываем этот маршрут по текущей комнате.
+        // Чтобы это работало между кликами корректно, engine пропускает уже побежденных.
+        // room id приходит косвенно, поэтому запрашиваем снова status в обработчике.
+        for (const enemyId of enemies) {
+          const btn = document.createElement('button');
+          btn.textContent = `Атаковать: ${escapeHtml(enemyId)}`;
+          btn.onclick = async () => {
+            await api(`/room/${encodeURIComponent(currentRoomId)}`, 'POST');
+            await refresh();
+          };
+          $enemies.appendChild(btn);
+        }
+      }
+
+      function renderInventory(status) {
+        const inv = status.inventory || [];
+        if (inv.length === 0) {
+          $inventory.innerHTML = '<i>Инвентарь пуст.</i>';
+          return;
+        }
+
+        $inventory.innerHTML = '';
+        for (const itemId of inv) {
+          const row = document.createElement('div');
+          row.innerHTML = `<div>${escapeHtml(itemId)}</div>`;
+          const btn = document.createElement('button');
+          btn.textContent = 'Использовать';
+          btn.onclick = async () => {
+            await api(`/item/${encodeURIComponent(itemId)}`, 'POST');
+            await refresh();
+          };
+          row.appendChild(btn);
+          $inventory.appendChild(row);
+        }
+      }
+
+      async function refresh() {
+        const status = await api('/status', 'GET');
+        renderStatus(status);
+        renderExits(status);
+        renderEnemies(status);
+        renderInventory(status);
+      }
+
+      $resetBtn.onclick = async () => {
+        await api('/init', 'POST');
+        await refresh();
+      };
+
+      refresh().catch((e) => {
+        $status.innerHTML = `<pre>${escapeHtml(e.message)}</pre>`;
+      });
+    </script>
+  </body>
+</html>
+

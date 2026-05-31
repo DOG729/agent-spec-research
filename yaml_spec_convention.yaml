@@ -1,0 +1,259 @@
+# =============================================================================
+# YAML Spec Convention — стандарт оформления спецификаций
+# =============================================================================
+# Этот файл — источник правил. Он не описывает конкретную подсистему.
+# Доменные спеки (например, module_system.yaml) ссылаются на него через
+# conforms_to и следуют структуре ниже.
+#
+# Принципы:
+#   • ключи — факты; комментарии (#) — когда, зачем, оговорки
+#   • не чисто машинный формат: пояснения обязательны там, где есть выбор
+#   • body расширяется доменными блоками (имена не фиксируются стандартом)
+#   • do_not — всегда последняя секция в доменной спеке
+# =============================================================================
+
+standard:
+  id: yaml_spec_convention
+  version: 1
+  document_role: format_standard   # не domain_spec
+
+# -----------------------------------------------------------------------------
+# CONFORMANCE — как доменная спека заявляет соответствие
+# -----------------------------------------------------------------------------
+# В начале любой предметной спеки (отдельный файл):
+#
+#   conforms_to:
+#     standard: "test/yaml_spec_convention.yaml"
+#     convention_version: 1
+#
+#   version: <int>          # версия содержимого этой спеки
+#   name: "<title>"
+#
+# Поля conforms_to не входят в body — только связь со стандартом.
+# Соответствие = соблюдение document_order + обязательных секций + do_not в конце.
+conformance:
+  required_in_domain_spec:
+    - conforms_to.standard
+    - conforms_to.convention_version
+    - version
+    - name
+  recommended_in_domain_spec:
+    - status          # draft | current | deprecated
+    - kind            # domain | agent_memory | hybrid | process
+  document_order:
+    - "conforms_to (если используется блоком — допустимо в шапке рядом с version)"
+    - "version, name, [status, kind, applies_to]"
+    - "base или stack"
+    - "dirs"
+    - "body (один или несколько доменных блоков)"
+    - "do_not"
+  validation_checklist:
+    - "Есть ли do_not последней секцией?"
+    - "Разделены ли negative schema (db_schema.removed) и поведенческие запреты (do_not)?"
+    - "Один факт — один блок; нет копипасты одного правила в трёх местах"
+    - "Комментарии поясняют неочевидный выбор, а не дублируют ключи"
+
+# -----------------------------------------------------------------------------
+# DOCUMENT STRUCTURE — обязательная форма доменной спеки
+# -----------------------------------------------------------------------------
+
+# --- 1. META (шапка) ---
+# version — версия содержимого файла (меняется при смене контракта домена).
+# name — человекочитаемое название, желательно с пометкой (current).
+# kind — подсказка агенту, что искать в base:
+#   domain       — подсистема приложения
+#   agent_memory — политики и лимиты агента
+#   hybrid       — код + политика агента
+#   process      — workflow, CI, релиз
+meta_schema:
+  required:
+    version: int
+    name: string
+  optional:
+    status: enum[draft, current, deprecated]
+    kind: enum[domain, agent_memory, hybrid, process]
+    applies_to: list[string]    # glob пути или id подсистемы
+    related_specs: list[string] # другие yaml-спеки, не дублировать их
+
+# --- 2. BASE (основание) ---
+# Синоним в доменной спеке: stack — допустимо, если внутри только tech_stack.
+# BASE — контекст для решений в body; схема ключей свободная.
+# Используй один или несколько профилей; не заполняй все «для галочки».
+base_profiles:
+  tech_stack:
+    description: "Runtime, фреймворки, UI-панели — всё, что влияет на совместимость"
+    example:
+      runtime: ">=X.Y"
+      framework: "major.range"
+      admin_ui: "optional"
+  agent_memory:
+    description: "Структурированный контракт поведения агента (лимиты, предпочтения)"
+    example:
+      session:
+        recovery_attempts: 1
+        create_new_if_missing: true
+      investigation:
+        api_before_browser: true
+      cost_control:
+        max_steps: 3
+    rule: "Значения измеримые: числа, флаги, enum — не размытый prose"
+  scope:
+    description: "Границы темы файла"
+    keys:
+      in_scope: list[string]
+      out_of_scope: list[string]
+  assumptions:
+    description: "Допущения, которые агент не должен «открывать заново»"
+    value: list[string]
+  custom:
+    description: "Любые ключи по домену: security, deployment, locales, …"
+
+base_rules:
+  - "Только то, что влияет на решения в этой спеке"
+  - "Не копировать lock-файлы и полные AGENTS.md"
+  - "notes[] в base — когда секцию можно не читать для узкой задачи"
+
+# --- 3. DIRS (файловая система) ---
+dirs_schema:
+  typical_keys:
+    root: "корень подсистемы от repo root"
+    structure: "list — пути с пометками (required)|(optional) и назначением"
+  optional:
+    path_contract: "если путь = часть FS-контракта и не тянет БД"
+  rule: "Только «где что лежит»; бизнес-логика — в body"
+
+# --- 4. BODY (предметная область) ---
+# Имена top-level блоков — доменные (snake_case), стандарт их не фиксирует.
+# Ниже — паттерны (шаблоны), не обязательный набор имён.
+body_patterns:
+
+  manifest:
+    description: "Контракт артефакта на диске (json, yaml, toml)"
+    shape:
+      required: list[string]
+      commonly_used: list[string]
+      notes: list[string]
+
+  config_layers:
+    description: "Несколько источников конфигурации — явно разделить чтение/запись"
+    shape:
+      purpose: string
+      source_of_truth_defaults: string
+      runtime_overrides: string
+      read_priority: list[string]
+      write_behavior: list[string]
+      boundaries: list[string]
+      supported_types: list[string]
+
+  db_schema:
+    description: "Таблицы и negative schema"
+    shape:
+      "<table_id>":
+        purpose: string
+        fields: list[string]
+        index: list[string]
+        constraints: list[string]
+        notes: list[string]
+      removed: list[string]
+
+  path_contract:
+    description: "Единый формат путей между FS, БД, installer"
+    shape:
+      current_expected_db_value: string
+      filesystem_resolution: string
+      warning: list[string]
+
+  core_services:
+    description: "Сервисы: файл + API + краткое поведение"
+    shape:
+      "<service_id>":
+        file: string
+        methods: list[string]
+        behavior: list[string]
+
+  integration:
+    description: "Точка входа в приложение (admin, API, events)"
+    shape:
+      provider: string
+      behavior: list[string]
+      actions: list[string]
+      notes: list[string]
+
+  helpers:
+    description: "Публичный API чтения (функции, фасады)"
+    shape:
+      file: string
+      structure: list[string]
+      key_functions: list[string]
+
+  caching:
+    description: "Ключи и когда инвалидировать"
+    shape:
+      keys: list[string]
+      invalidate_after: list[string]
+
+  known_constraints:
+    description: "Инварианты — нарушение ломает систему"
+    value: list[string]
+
+body_rules:
+  naming:
+    - "Блок = одна ответственность"
+    - "Имя блока = термин предметной области, не layer_1"
+  negative_schema:
+    - "db_schema.removed — что вырезано из системы"
+    - "do_not — что запрещено вводить снова в поведении/коде"
+  duplication:
+    - "Факт один раз в body; do_not не повторяет длинные объяснения"
+
+# --- 5. DO_NOT (конец файла) ---
+do_not_schema:
+  position: last_section
+  value: list[string]
+  content: "Запреты и антипаттерны; не смешивать с removed без причины"
+
+# -----------------------------------------------------------------------------
+# EXTENSION — модификации без выхода за стандарт
+# -----------------------------------------------------------------------------
+extension:
+  split_file_when:
+    - "больше ~250 строк"
+    - "в одном файле два kind (domain + agent_memory)"
+  merge_related_via: meta.related_specs
+  synonyms_allowed:
+    base: stack
+  agent_policies:
+    task_level: base.agent_memory
+    domain_level: "body.<integration>.notes или known_constraints"
+
+# -----------------------------------------------------------------------------
+# ANTI-PATTERNS — при написании любой доменной спеки (не domain do_not)
+# -----------------------------------------------------------------------------
+standard_do_not:
+  - "Не использовать этот файл как описание конкретной подсистемы"
+  - "Не вшивать в стандарт примеры из одного проекта (пути, классы, таблицы)"
+  - "Не оставлять body без do_not"
+  - "Не дублировать стандарт в AGENTS.md prose — ссылка conforms_to достаточна"
+
+# -----------------------------------------------------------------------------
+# MINIMAL SKELETON — копировать в новую доменную спеку
+# -----------------------------------------------------------------------------
+# conforms_to:
+#   standard: "test/yaml_spec_convention.yaml"
+#   convention_version: 1
+#
+# version: 1
+# name: "<Subsystem (current)>"
+#
+# base:                          # или stack:
+#   tech_stack: { ... }
+#
+# dirs:
+#   root: "..."
+#   structure: []
+#
+# <domain_block>: { ... }
+#
+# known_constraints: []
+#
+# do_not: []

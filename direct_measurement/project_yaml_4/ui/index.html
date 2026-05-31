@@ -1,0 +1,154 @@
+<!doctype html> 
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dungeon Runner</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 16px; }
+      .row { display: flex; gap: 16px; flex-wrap: wrap; }
+      .card { border: 1px solid #ddd; border-radius: 8px; padding: 12px; min-width: 280px; }
+      button { margin: 4px 6px 4px 0; padding: 6px 10px; }
+      ul { margin: 8px 0; padding-left: 18px; }
+      .muted { color: #666; font-size: 0.95em; }
+    </style>
+  </head>
+  <body>
+    <h1>Dungeon Runner</h1>
+    <div class="row">
+      <div class="card" style="flex: 1 1 340px;">
+        <h2>Статус</h2>
+        <div id="statusText" class="muted">Загрузка...</div>
+        <div id="exits"></div>
+      </div>
+      <div class="card" style="flex: 1 1 340px;">
+        <h2>Инвентарь</h2>
+        <div id="inventory"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 16px;">
+      <h2>Атака</h2>
+        <div id="attacks" class="muted">Сначала нажмите «Сброс».</div>
+      <div style="margin-top: 10px;">
+        <button id="resetBtn">Сброс</button>
+      </div>
+    </div>
+
+    <script>
+      async function api(path, method = 'GET') {
+        const res = await fetch(path, {
+          method,
+          headers: { 'Content-Type': 'application/json; charset=utf-8' }
+        });
+        if (!res.ok) {
+          const err = await res.text().catch(() => '');
+          throw new Error(`HTTP ${res.status}: ${err || res.statusText}`);
+        }
+        return await res.json().catch(() => ({}));
+      }
+
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, (c) => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+        }[c]));
+      }
+
+      let lastStatus = null;
+
+      async function refreshStatus() {
+        lastStatus = await api('/status', 'GET');
+        renderStatus(lastStatus);
+        renderInventory(lastStatus);
+        renderAttacks(lastStatus);
+      }
+
+      function renderStatus(status) {
+        const el = document.getElementById('statusText');
+        const invCount = status.inventory.length;
+        el.innerHTML = `
+          <div><b>Комната:</b> ${escapeHtml(status.room)}</div>
+          <div><b>HP:</b> ${status.hp} / ${status.maxHp}</div>
+          <div><b>Уровень:</b> ${status.level}</div>
+          <div><b>XP:</b> ${status.xp} (до следующего: ${status.xpToNextLevel})</div>
+          <div><b>Инвентарь:</b> ${invCount}</div>
+        `;
+
+        const exits = document.getElementById('exits');
+        exits.innerHTML = '<h3>Выходы</h3>';
+        const buttonsWrap = document.createElement('div');
+        const entries = Object.entries(status.exits || {});
+        for (const [label, roomId] of entries) {
+          const btn = document.createElement('button');
+          btn.textContent = `В ${label}`;
+          btn.onclick = async () => {
+            // Room endpoint handles all enemies sequentially.
+            await api(`/room/${encodeURIComponent(roomId)}`, 'POST');
+            await refreshStatus();
+          };
+          buttonsWrap.appendChild(btn);
+        }
+        exits.appendChild(buttonsWrap);
+      }
+
+      function renderInventory(status) {
+        const inv = document.getElementById('inventory');
+        inv.innerHTML = '<h3>Предметы</h3>';
+        if (!status.inventory.length) {
+          inv.innerHTML += '<div class="muted">Пока пусто.</div>';
+          return;
+        }
+
+        const ul = document.createElement('ul');
+        for (const itemId of status.inventory) {
+          const li = document.createElement('li');
+          li.textContent = itemId + ' ';
+
+          const btn = document.createElement('button');
+          btn.textContent = 'Использовать';
+          btn.onclick = async () => {
+            await api(`/item/${encodeURIComponent(itemId)}`, 'POST');
+            await refreshStatus();
+          };
+
+          li.appendChild(btn);
+          ul.appendChild(li);
+        }
+        inv.appendChild(ul);
+      }
+
+      function renderAttacks(status) {
+        const attacks = document.getElementById('attacks');
+        const enemies = status.enemies || [];
+        attacks.innerHTML = '<h3>Враги</h3>';
+        if (!enemies.length) {
+          attacks.innerHTML += '<div class="muted">В этой комнате никого нет.</div>';
+          return;
+        }
+
+        for (const enemyId of enemies) {
+          const btn = document.createElement('button');
+          btn.textContent = `Атаковать ${enemyId}`;
+          btn.onclick = async () => {
+            // Spec-функция processRoom обрабатывает всех врагов последовательно,
+            // endpoint /room/:id принимает идентификатор комнаты.
+            await api(`/room/${encodeURIComponent(status.roomId)}`, 'POST');
+            await refreshStatus();
+          };
+          attacks.appendChild(btn);
+        }
+      }
+
+      document.getElementById('resetBtn').onclick = async () => {
+        await api('/init', 'POST');
+        await refreshStatus();
+      };
+
+      // Initial load
+      refreshStatus().catch((e) => {
+        document.getElementById('statusText').textContent = `Ошибка: ${e.message}`;
+      });
+    </script>
+  </body>
+</html>
+

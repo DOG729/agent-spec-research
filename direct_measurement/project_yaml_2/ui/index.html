@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Dungeon Runner</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 0;
+        background: #181818;
+        color: #f2f2f2;
+      }
+
+      main {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      section {
+        margin: 16px 0;
+        padding: 16px;
+        background: #242424;
+        border: 1px solid #3a3a3a;
+        border-radius: 8px;
+      }
+
+      button {
+        margin: 4px;
+        padding: 8px 12px;
+        border: 0;
+        border-radius: 6px;
+        background: #5a7cff;
+        color: white;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: #7892ff;
+      }
+
+      .danger {
+        background: #a93636;
+      }
+
+      .danger:hover {
+        background: #c54a4a;
+      }
+
+      .muted {
+        color: #b8b8b8;
+      }
+
+      ul {
+        padding-left: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Dungeon Runner</h1>
+
+      <section>
+        <h2>Статус</h2>
+        <div id="status">Загрузка...</div>
+      </section>
+
+      <section>
+        <h2>Действия</h2>
+        <div id="actions"></div>
+      </section>
+
+      <section>
+        <h2>Инвентарь</h2>
+        <div id="inventory"></div>
+      </section>
+
+      <section>
+        <h2>Журнал</h2>
+        <pre id="log" class="muted"></pre>
+      </section>
+    </main>
+
+    <script>
+      const statusNode = document.querySelector('#status');
+      const actionsNode = document.querySelector('#actions');
+      const inventoryNode = document.querySelector('#inventory');
+      const logNode = document.querySelector('#log');
+
+      let currentStatus = null;
+
+      async function request(path, options = {}) {
+        const response = await fetch(path, options);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Request failed');
+        }
+
+        return data;
+      }
+
+      function writeLog(value) {
+        logNode.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+      }
+
+      async function perform(path) {
+        try {
+          const result = await request(path, {
+            method: 'POST'
+          });
+
+          writeLog(result);
+          await loadStatus();
+        } catch (error) {
+          writeLog(error.message);
+        }
+      }
+
+      function renderStatus(status) {
+        statusNode.innerHTML = `
+          <p><strong>Комната:</strong> ${status.room}</p>
+          <p><strong>HP:</strong> ${status.hp} / ${status.maxHp}</p>
+          <p><strong>Уровень:</strong> ${status.level}</p>
+          <p><strong>XP:</strong> ${status.xp}</p>
+          <p><strong>До следующего уровня:</strong> ${status.xpToNextLevel}</p>
+          <p><strong>Выходы:</strong> ${Object.keys(status.exits).join(', ') || 'нет'}</p>
+        `;
+      }
+
+      function renderActions(status) {
+        actionsNode.replaceChildren();
+
+        for (const [direction, roomId] of Object.entries(status.exits)) {
+          const button = document.createElement('button');
+
+          button.textContent = `Идти: ${direction}`;
+          button.addEventListener('click', () => perform(`/room/${encodeURIComponent(roomId)}`));
+          actionsNode.append(button);
+        }
+
+        for (const enemyId of status.enemies) {
+          const button = document.createElement('button');
+
+          button.textContent = `Атаковать: ${enemyId}`;
+          button.className = 'danger';
+          button.addEventListener('click', () => perform(`/room/${encodeURIComponent(status.roomId)}`));
+          actionsNode.append(button);
+        }
+
+        const resetButton = document.createElement('button');
+
+        resetButton.textContent = 'Сброс';
+        resetButton.addEventListener('click', () => perform('/init'));
+        actionsNode.append(resetButton);
+      }
+
+      function renderInventory(status) {
+        inventoryNode.replaceChildren();
+
+        if (status.inventory.length === 0) {
+          inventoryNode.textContent = 'Инвентарь пуст.';
+          return;
+        }
+
+        const list = document.createElement('ul');
+
+        for (const itemId of status.inventory) {
+          const item = document.createElement('li');
+          const button = document.createElement('button');
+
+          button.textContent = 'Использовать';
+          button.addEventListener('click', () => perform(`/item/${encodeURIComponent(itemId)}`));
+          item.append(itemId, ' ', button);
+          list.append(item);
+        }
+
+        inventoryNode.append(list);
+      }
+
+      async function loadStatus() {
+        try {
+          currentStatus = await request('/status');
+          renderStatus(currentStatus);
+          renderActions(currentStatus);
+          renderInventory(currentStatus);
+        } catch (error) {
+          writeLog(error.message);
+        }
+      }
+
+      loadStatus();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Dungeon Runner</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 2rem;
+        max-width: 760px;
+      }
+
+      section {
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        margin: 1rem 0;
+        padding: 1rem;
+      }
+
+      button {
+        margin: 0.25rem;
+      }
+
+      .muted {
+        color: #666;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Dungeon Runner</h1>
+
+    <section>
+      <h2>Статус</h2>
+      <div id="status">Загрузка...</div>
+    </section>
+
+    <section>
+      <h2>Инвентарь</h2>
+      <div id="inventory"></div>
+    </section>
+
+    <section>
+      <h2>Действия</h2>
+      <div id="actions"></div>
+    </section>
+
+    <section>
+      <h2>Результат</h2>
+      <pre id="result" class="muted"></pre>
+    </section>
+
+    <script>
+      const statusElement = document.querySelector('#status');
+      const inventoryElement = document.querySelector('#inventory');
+      const actionsElement = document.querySelector('#actions');
+      const resultElement = document.querySelector('#result');
+
+      async function requestJson(path, options = {}) {
+        const response = await fetch(path, options);
+        const payload = await response.json();
+
+        if (!response.ok) {
+          throw new Error(payload.error || 'Request failed');
+        }
+
+        return payload;
+      }
+
+      function renderList(items, emptyText) {
+        if (!items.length) {
+          return `<p class="muted">${emptyText}</p>`;
+        }
+
+        return `<ul>${items.map((item) => `<li>${item}</li>`).join('')}</ul>`;
+      }
+
+      function createButton(label, onClick) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = label;
+        button.addEventListener('click', onClick);
+        return button;
+      }
+
+      async function runAction(action) {
+        try {
+          const payload = await action();
+          resultElement.textContent = JSON.stringify(payload, null, 2);
+        } catch (error) {
+          resultElement.textContent = error.message;
+        } finally {
+          await loadStatus();
+        }
+      }
+
+      function renderInventory(status) {
+        inventoryElement.textContent = '';
+
+        if (!status.inventory.length) {
+          inventoryElement.innerHTML = '<p class="muted">Пусто</p>';
+          return;
+        }
+
+        for (const itemId of status.inventory) {
+          const row = document.createElement('div');
+          row.textContent = itemId;
+          row.append(
+            createButton('Использовать', () =>
+              runAction(() => requestJson(`/item/${encodeURIComponent(itemId)}`, { method: 'POST' })),
+            ),
+          );
+          inventoryElement.append(row);
+        }
+      }
+
+      function renderActions(status) {
+        actionsElement.textContent = '';
+
+        const exitsTitle = document.createElement('h3');
+        exitsTitle.textContent = 'Выходы';
+        actionsElement.append(exitsTitle);
+
+        const exits = Object.entries(status.exits);
+        if (!exits.length) {
+          actionsElement.append(document.createElement('p')).textContent = 'Нет выходов';
+        }
+
+        for (const [direction, roomId] of exits) {
+          actionsElement.append(
+            createButton(`${direction}: ${roomId}`, () =>
+              runAction(() => requestJson(`/room/${encodeURIComponent(roomId)}`, { method: 'POST' })),
+            ),
+          );
+        }
+
+        const enemiesTitle = document.createElement('h3');
+        enemiesTitle.textContent = 'Враги';
+        actionsElement.append(enemiesTitle);
+
+        if (!status.enemies.length) {
+          actionsElement.append(document.createElement('p')).textContent = 'Нет врагов';
+        }
+
+        for (const enemyId of status.enemies) {
+          actionsElement.append(
+            createButton(`Атаковать: ${enemyId}`, () =>
+              runAction(() => requestJson(`/room/${encodeURIComponent(status.roomId)}`, { method: 'POST' })),
+            ),
+          );
+        }
+
+        actionsElement.append(
+          createButton('Сброс', () => runAction(() => requestJson('/init', { method: 'POST' }))),
+        );
+      }
+
+      async function loadStatus() {
+        const status = await requestJson('/status');
+
+        statusElement.innerHTML = `
+          <p><strong>Комната:</strong> ${status.room}</p>
+          <p><strong>HP:</strong> ${status.hp} / ${status.maxHp}</p>
+          <p><strong>Уровень:</strong> ${status.level}</p>
+          <p><strong>XP:</strong> ${status.xp}</p>
+          <p><strong>До уровня:</strong> ${status.xpToNextLevel}</p>
+          <p><strong>Выходы:</strong></p>
+          ${renderList(Object.keys(status.exits), 'Нет выходов')}
+        `;
+
+        renderInventory(status);
+        renderActions(status);
+      }
+
+      loadStatus().catch((error) => {
+        statusElement.textContent = error.message;
+      });
+    </script>
+  </body>
+</html>

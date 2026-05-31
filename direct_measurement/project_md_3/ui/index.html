@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dungeon Runner</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 16px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      .card {
+        border: 1px solid #ddd;
+        padding: 12px;
+        border-radius: 8px;
+      }
+      button {
+        margin: 4px 6px 4px 0;
+      }
+      pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Dungeon Runner</h1>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Статус</h2>
+        <div class="row">
+          <div>Комната:</div>
+          <div id="roomDesc"></div>
+        </div>
+        <div class="row">
+          <div>HP:</div>
+          <div id="hp"></div>
+        </div>
+        <div class="row">
+          <div>Уровень:</div>
+          <div id="level"></div>
+        </div>
+        <div class="row">
+          <div>XP:</div>
+          <div id="xp"></div>
+        </div>
+        <div class="row">
+          <div>До следующего уровня:</div>
+          <div id="xpToNext"></div>
+        </div>
+
+        <h3>Выходы</h3>
+        <div id="exits"></div>
+
+        <h3>Враги</h3>
+        <div id="enemies"></div>
+
+        <div style="margin-top: 10px;">
+          <button id="resetBtn">Сброс</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Инвентарь</h2>
+        <div id="inventory"></div>
+        <h3>Результат последнего действия</h3>
+        <pre id="lastResult"></pre>
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+
+      let current = {
+        roomId: null,
+      };
+
+      function renderExits(exits) {
+        const root = $('exits');
+        root.innerHTML = '';
+        for (const [direction, roomId] of Object.entries(exits || {})) {
+          const btn = document.createElement('button');
+          btn.textContent = `Перейти ${direction}`;
+          btn.addEventListener('click', async () => {
+            await doRoom(roomId);
+          });
+          root.appendChild(btn);
+        }
+      }
+
+      function renderEnemies(enemies) {
+        const root = $('enemies');
+        root.innerHTML = '';
+        const roomId = current.roomId;
+
+        (enemies || []).forEach((enemyId) => {
+          const btn = document.createElement('button');
+          btn.textContent = `Атаковать ${enemyId}`;
+          btn.addEventListener('click', async () => {
+            await doRoom(roomId);
+          });
+          root.appendChild(btn);
+        });
+      }
+
+      function renderInventory(items) {
+        const root = $('inventory');
+        root.innerHTML = '';
+        const list = items || [];
+
+        list.forEach((itemId) => {
+          const wrap = document.createElement('div');
+          wrap.className = 'row';
+
+          const span = document.createElement('span');
+          span.textContent = itemId;
+
+          const btn = document.createElement('button');
+          btn.textContent = 'Использовать';
+          btn.addEventListener('click', async () => {
+            await doUseItem(itemId);
+          });
+
+          wrap.appendChild(span);
+          wrap.appendChild(btn);
+          root.appendChild(wrap);
+        });
+      }
+
+      function setStatus(data) {
+        current.roomId = data.roomId;
+        $('roomDesc').textContent = data.room;
+        $('hp').textContent = `${data.hp} / ${data.maxHp}`;
+        $('level').textContent = String(data.level);
+        $('xp').textContent = String(data.xp);
+        $('xpToNext').textContent = String(data.xpToNextLevel);
+
+        renderExits(data.exits);
+        renderEnemies(data.enemies);
+        renderInventory(data.inventory);
+      }
+
+      async function api(path, method = 'GET') {
+        const res = await fetch(path, { method });
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          throw new Error(text || `HTTP ${res.status}`);
+        }
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) return await res.json();
+        return await res.text();
+      }
+
+      async function refreshStatus() {
+        const data = await api('/status', 'GET');
+        setStatus(data);
+      }
+
+      async function doRoom(roomId) {
+        const result = await api(`/room/${encodeURIComponent(roomId)}`, 'POST');
+        $('lastResult').textContent = JSON.stringify(result, null, 2);
+        await refreshStatus();
+      }
+
+      async function doUseItem(itemId) {
+        const result = await api(`/item/${encodeURIComponent(itemId)}`, 'POST');
+        $('lastResult').textContent = JSON.stringify(result, null, 2);
+        await refreshStatus();
+      }
+
+      async function doInit() {
+        await api('/init', 'POST');
+        $('lastResult').textContent = 'Сессия сброшена';
+        await refreshStatus();
+      }
+
+      $('resetBtn').addEventListener('click', async () => {
+        await doInit();
+      });
+
+      refreshStatus().catch((err) => {
+        $('lastResult').textContent = `Ошибка: ${err.message}`;
+      });
+    </script>
+  </body>
+</html>
+

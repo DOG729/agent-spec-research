@@ -1,0 +1,114 @@
+conforms_to:
+  standard: yaml_spec_convention-mini.yaml
+  convention_version: 1
+
+version: 1
+name: dungeon-runner-game
+kind: domain
+
+stack:
+  runtime: "Node.js >= 18"
+  language: "JavaScript ES modules (no npm packages)"
+  storage: "JSON files on disk via fs/promises"
+
+dirs:
+  root: ./
+  structure:
+    - path: core/data.json
+      purpose: static game config — entity definitions and balance values
+      mutability: read-only at runtime
+    - path: core/state.json
+      purpose: runtime player state — HP, position, inventory, progress
+      mutability: read-write at runtime
+    - path: core/io.js
+      purpose: loadConfig, loadState, saveState — shared I/O platform; do not modify
+    - path: engine.js
+      purpose: combat resolution, room navigation, player init — implement here
+    - path: server.js
+      purpose: HTTP server on port 3000; loads CONFIG once at startup
+    - path: ui/index.html
+      purpose: browser game UI; fetches all data via API only; never reads JSON files directly
+
+body:
+  data_sources:
+    config:
+      file: data.json
+      loaded: once at startup via loadConfig()
+      cached_as: CONFIG (module-level const, never reassigned)
+      mutability: read-only
+      covers:
+        - "enemies: id → { hp, damage, xp_reward, loot_table[] }"
+        - "items: id → { name, effect, value }"
+        - "rooms: id → { description, enemies[], loot[], exits{} }"
+        - "balance: { player_base_hp, xp_per_level, max_inventory }"
+    state:
+      file: state.json
+      loaded: via loadState() at session start
+      cached_as: STATE (mutable object, written back via saveState)
+      mutability: read-write
+      covers:
+        - "player: { hp, xp, level, inventory[] }"
+        - current_room_id
+        - defeated_enemies[]
+        - session_started_at
+
+  access_pattern:
+    config_read: CONFIG.<key> — never re-read data.json mid-session
+    state_read: STATE.<key> — loaded from state.json once per session start
+    state_write: mutate STATE then call saveState(STATE) — only path to disk
+    forbidden:
+      - calling fs.readFile('data.json') after initial loadConfig()
+      - calling fs.writeFile('data.json', ...) at any point
+
+  game_loop:
+    steps:
+      - "loadConfig() → freeze as CONFIG"
+      - "loadState() → load as STATE"
+      - "renderRoom(CONFIG.rooms[STATE.current_room_id])"
+      - "handleAction(input, CONFIG, STATE)"
+      - "saveState(STATE)"
+    invariant: CONFIG is passed into engine functions, never imported directly
+
+  combat:
+    damage_resolution: CONFIG.enemies[id].damage → subtract from STATE.player.hp
+    reward_resolution: CONFIG.enemies[id].xp_reward → add to STATE.player.xp
+    loot_resolution: pick from CONFIG.enemies[id].loot_table → push to STATE.player.inventory
+    player_hp_source: STATE.player.hp (not CONFIG; player_base_hp is init-only)
+    rule: all numeric combat constants come from CONFIG; zero literals in engine.js
+
+  progression:
+    level_up_threshold: CONFIG.balance.xp_per_level
+    rule: STATE.player.level increments when STATE.player.xp >= CONFIG.balance.xp_per_level * STATE.player.level
+    xp_source: STATE.player.xp (runtime); threshold from CONFIG.balance.xp_per_level
+
+  inventory:
+    capacity: CONFIG.balance.max_inventory
+    rule: STATE.player.inventory.length must not exceed CONFIG.balance.max_inventory before pushing loot
+    overflow: drop the item silently if inventory is full
+
+  item_effects:
+    heal: CONFIG.items[id].effect === 'heal' → STATE.player.hp += CONFIG.items[id].value
+    currency: CONFIG.items[id].effect === 'currency' → accumulate in STATE; no HP change
+    unlock: CONFIG.items[id].effect === 'unlock' → flag in STATE for door/exit logic
+    rule: effect type and value always come from CONFIG.items[id]; never hardcode per item id
+
+  entity_registration:
+    rule: >-
+      A new enemy, item, or room type must have a data.json entry before
+      any code can reference its id. Code never defines entity stats inline.
+
+known_constraints:
+  - CONFIG is read-only after loadConfig; mutations cause silent desync
+  - core/state.json is the only file written at runtime
+  - balance values exist in core/data.json so a designer can tune without code changes
+  - adding a new entity type without a data.json entry will cause a runtime KeyError
+
+do_not:
+  - hardcode damage, HP, XP, item values, or thresholds as literals; read from CONFIG
+  - write to data.json at runtime; it is the read-only source of truth for game design
+  - read current player HP, level, or inventory from data.json; that is STATE, not CONFIG
+  - read balance or entity stats from state.json; that is CONFIG territory
+  - call fs.readFile('data.json') inside a request handler; load CONFIG once at server startup
+  - define an enemy or item type inline in code without a data.json entry
+  - mix config keys and state keys in the same JSON file
+  - fetch data.json or state.json directly from the browser; use the HTTP API only 

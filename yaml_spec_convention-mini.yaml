@@ -1,0 +1,140 @@
+standard:
+  id: yaml_spec_convention_mini
+  version: 1
+  role: format_standard
+  extends: yaml_spec_convention
+  profile: machine
+
+conformance:
+  domain_spec:
+    required_keys:
+      - conforms_to.standard
+      - conforms_to.convention_version
+      - version
+      - name
+      - do_not
+    optional_keys:
+      - status
+      - kind
+      - applies_to
+      - related_specs
+    key_types:
+      conforms_to.standard: string
+      conforms_to.convention_version: int
+      version: int
+      name: string
+      status: enum[draft, current, deprecated]
+      kind: enum[domain, agent_memory, hybrid, process]
+      applies_to: list[string]
+      related_specs: list[string]
+      do_not: list[string]
+  document_order:
+    - conforms_to
+    - version
+    - name
+    - base
+    - stack
+    - dirs
+    - body
+    - do_not
+  rules:
+    do_not_must_be_last: true
+    base_or_stack_required: one_of[base, stack]
+    dirs_optional: true
+    body_min_blocks: 1
+    one_fact_one_block: true
+    removed_in_db_schema_not_in_do_not_only: true
+
+document:
+  sections:
+    conforms_to:
+      required: true
+      keys: [standard, convention_version]
+    meta:
+      keys: [version, name, status, kind, applies_to, related_specs]
+    base:
+      synonym: stack
+      profiles_allowed: [tech_stack, agent_memory, scope, assumptions]
+      profile_keys:
+        tech_stack: map
+        agent_memory: map
+        scope: {in_scope: list, out_of_scope: list}
+        assumptions: list
+    dirs:
+      required_keys: []
+      typical_keys: [root, structure]
+      optional_keys: [path_contract]
+      content: filesystem_only
+    body:
+      naming: snake_case
+      blocks: domain_defined
+    do_not:
+      position: last
+      type: list[string]
+
+body_patterns:
+  manifest:
+    keys: [required, commonly_used, notes]
+    types:
+      required: list
+      commonly_used: list
+      notes: list
+  config_layers:
+    keys: [purpose, source_of_truth_defaults, runtime_overrides, read_priority, write_behavior, boundaries, supported_types]
+  db_schema:
+    table_keys: [purpose, fields, index, constraints, notes]
+    required_sibling: removed
+    removed_type: list
+  path_contract:
+    keys: [current_expected_db_value, filesystem_resolution, warning]
+  core_services:
+    service_keys: [file, methods, behavior]
+    required: [file, behavior]
+  integration:
+    keys: [provider, behavior, actions, notes]
+  helpers:
+    keys: [file, structure, key_functions]
+  caching:
+    keys: [keys, invalidate_after]
+  known_constraints:
+    type: list[string]
+
+validation:
+  fail_if:
+    - missing conforms_to
+    - missing version
+    - missing name
+    - missing do_not
+    - do_not not last top-level key
+    - duplicate fact in multiple body blocks
+    - db_schema without removed when tables present
+  warn_if:
+    - lines_gt: 250
+    - kind hybrid without split via related_specs
+    - base and stack both present with conflicting content
+
+extension:
+  split_if: [lines_gt_250, kind_hybrid]
+  synonyms: {base: stack}
+  agent_memory_location: base.agent_memory
+  domain_policy_location: [known_constraints, integration.notes]
+
+standard_do_not:
+  - file_is_domain_spec
+  - embed_project_paths_in_standard
+  - body_without_do_not
+  - duplicate_standard_in_markdown
+
+skeleton:
+  conforms_to:
+    standard: test/yaml_spec_convention-mini.yaml
+    convention_version: 1
+  version: 1
+  name: REQUIRED
+  stack: {}
+  dirs:
+    root: REQUIRED
+    structure: []
+  DOMAIN_BLOCK: {}
+  known_constraints: []
+  do_not: []

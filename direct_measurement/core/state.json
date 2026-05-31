@@ -1,0 +1,18 @@
+{
+  "player": {
+    "hp": 67,
+    "gold": 7,
+    "xp": 150,
+    "level": 4,
+    "inventory": [
+      "leather_scrap",
+      "leather_scrap"
+    ],
+    "unlocked": []
+  },
+  "current_room_id": "entrance",
+  "defeated_enemies": [
+    "goblin"
+  ],
+  "session_started_at": "2026-05-31T23:19:38.632Z"
+}
