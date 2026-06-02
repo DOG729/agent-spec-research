@@ -1,8 +1,8 @@
-# Structured Agent Specs Research
+# Agent Contract DSL Research
 
 Текущий фокус:
 
-> Можно ли определить **стандарт semantic-контракта** (LSKC), который даёт агентам более предсказуемое поведение, чем обычные ad-hoc Markdown-инструкции.
+> Можно ли определить **контрактный DSL для агентов** (LSKC), который даёт более предсказуемое поведение, чем ad-hoc инструкции.
 
 ## Что в репозитории
 
@@ -10,7 +10,7 @@
 
 - [`AgentSpecificationResearch.md`](AgentSpecificationResearch.md) — гипотезы, метрики, целевой дизайн экспериментов.
 Ключевая идея из [`AgentSpecificationResearch.md`](AgentSpecificationResearch.md):
-сравнивать нужно не синтаксис (`.yaml` vs `.md`), а **качество и строгость контракта**.
+сравнивать нужно не формат записи (`.yaml`/`.md`), а **семантику DSL и строгость контракта**.
 
 ### 2) Новый стандарт
 
@@ -18,11 +18,12 @@
 - [`semantic_specification_standard/Proxy.md`](semantic_specification_standard/Proxy.md) — прокси-конвертер Markdown → LSKC.
 - [`semantic_specification_standard/lskc.schema.json`](semantic_specification_standard/lskc.schema.json) — machine-checkable схема для структурной валидации.
 - [`semantic_specification_standard/README.md`](semantic_specification_standard/README.md) — локальная документация стандарта и workflow.
-- [`semantic_specification_standard/example/`](semantic_specification_standard/example/) — примеры спецификаций.
+- [`semantic_specification_standard/example/`](semantic_specification_standard/example/) — примеры спецификаций DSL.
   - [`ModuleSystem.yaml`](semantic_specification_standard/example/ModuleSystem.yaml)
   - [`JSONSaveEditor.yaml`](semantic_specification_standard/example/JSONSaveEditor.yaml)
   - [`DungeonRunner.yaml`](semantic_specification_standard/example/DungeonRunner.yaml)
   - [`SolarExpanseSaveEditor.yaml`](semantic_specification_standard/example/SolarExpanseSaveEditor.yaml)
+  - [`WWMRussianLocalization.yaml`](semantic_specification_standard/example/WWMRussianLocalization.yaml)
 
 ### 3) Предыдущие эксперименты (legacy baseline)
 
@@ -40,20 +41,20 @@
 - без строгой схемы и чёткого контракта API/стыков агент делает флуктуации;
 - сравнение токенов по Total в agent-среде шумное из-за Cache Read.
 
-Именно из этого появился текущий поворот: проектировать **валидируемый стандарт**, а не спорить "yaml vs md".
+Именно из этого появился текущий поворот: проектировать **валидируемый DSL-контракт**, а не спорить о формате файла.
 
 ## Текущая формулировка гипотезы
 
-> A validated semantic specification standard reduces agent solution space and improves reliability/predictability versus ad-hoc instructions.
+> A validated agent contract DSL reduces solution space and improves reliability/predictability versus ad-hoc instructions.
 
 ## Текущий статус
 
 | Направление | Статус |
 |-------------|--------|
-| YAML vs MD как чистый формат | не даёт сильного вывода |
+| YAML vs MD как чистый формат | baseline-этап (вторично относительно DSL) |
 | Старые эксперименты | сохранены как baseline и обоснование pivot |
-| LSKC стандарт | сформирован (v1), добавлена schema |
-| Набор canonical examples | 4 домена (ModuleSystem, JSONSaveEditor, DungeonRunner, SolarExpanseSaveEditor) |
+| LSKC DSL | сформирован (v1), добавлена schema |
+| Набор canonical examples | 5 доменов |
 | Валидация | структурная (JSON Schema) есть, семантическая — следующий этап |
 | Главная гипотеза | в работе, требует нового цикла agent-behavior тестов |
 
@@ -69,4 +70,4 @@
 
 Кратко:
 
-> Старые результаты объяснили, почему "просто YAML" недостаточно. Новый этап — сделать проверяемый semantic-стандарт, который может быть лучше обычного Markdown в агентной среде.
+> Старые результаты объяснили, почему "просто YAML" недостаточно. Новый этап — проверить, что контрактный DSL (LSKC) даёт более стабильное поведение агента, чем ad-hoc инструкции.
