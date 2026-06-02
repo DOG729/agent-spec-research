@@ -67,6 +67,11 @@ When one statement fits multiple categories, choose the highest:
 
 This is normative for converters and semantic validators.
 
+Interpretation note:
+Priority does not mean "importance for architecture". It resolves overlap by statement type.
+`SYSTEM_MODEL` is topology/shape of the system; `FACTS` is assertion-level truth about behavior/source-of-truth/invariants.
+If one sentence can be expressed as both, keep topology in `SYSTEM_MODEL` and keep only the assertion in `FACTS`.
+
 ---
 
 ## SECTION SEMANTICS
@@ -79,8 +84,9 @@ Authoritative current-state truths.
 Allowed content:
 
 * observable behavior
-* current architecture facts
+* assertion-level architecture truths
 * source-of-truth locations
+* runtime/storage invariants stated descriptively (without mandatory language) 
 
 Forbidden content:
 
@@ -93,6 +99,35 @@ Example:
 
 Counter example:
 "Namespace must be unique." (belongs to CONSTRAINTS)
+
+Boundary with SYSTEM_MODEL:
+
+* Put placement/topology in `SYSTEM_MODEL` (components, entities, tables, folders, fields, links).
+* Put descriptive invariants in `FACTS` ("X is persisted in Y", "runtime source of truth is Z").
+* Do not duplicate the same sentence in both sections unless one is topology and the other is a stricter assertion.
+
+Mini example:
+
+```yaml
+SYSTEM_MODEL:
+  storage:
+    module_registry_table: modules
+    path_column: modules.path
+
+FACTS:
+  module_path_source:
+    statement: Module path value is persisted and resolved from modules.path in DB.
+    confidence: authoritative
+```
+
+Order-invariant example (FACTS vs PROCEDURES):
+
+* `FACTS`: "Install flow guarantees migrations complete before seeders start."
+* `PROCEDURES`: "run_migrations -> run_seeders -> warm_cache"
+
+Rule:
+Use `FACTS` when the statement declares an invariant truth about ordering.
+Use `PROCEDURES` when the statement instructs an executable step sequence.
 
 ### CONSTRAINTS
 
@@ -148,6 +183,7 @@ Allowed content:
 
 * step sequences
 * expected result of steps
+* conditional branches in steps (e.g. if/else paths)
 
 Forbidden content:
 
@@ -158,7 +194,44 @@ Example:
 "run_migrations -> run_seeders -> activate_module"
 
 Counter example:
-"Migrations are stored in Database/Migrations." (belongs to FACTS/SYSTEM_MODEL)
+"Migrations are stored in Database/Migrations." (belongs to SYSTEM_MODEL unless used as assertion in FACTS)
+
+Conditional syntax note:
+
+The standard allows domain-specific conditional wording inside `steps`.
+Examples:
+
+* `if_parse_success_update_value`
+* `if_parse_failure_restore_previous_value`
+* `if_entity_missing_return_error`
+
+No fixed DSL is required at this layer; structural schema remains transport-level.
+
+### AGENT_BEHAVIOR
+
+Purpose:
+Agent-side preflight and verification policy before/around implementation changes.
+
+Allowed content:
+
+* pre-change verify/check lists
+* uncertainty handling rules
+* escalation/stop conditions for agent execution
+
+Forbidden content:
+
+* domain runtime procedures that belong to product logic
+* full implementation step chains better represented in `PROCEDURES`
+
+Boundary with PROCEDURES:
+
+* `PROCEDURES` describes "how the system/task is executed".
+* `AGENT_BEHAVIOR` describes "what the agent must verify before or during edits". 
+
+Mini contrast:
+
+* `PROCEDURES`: `parse_input -> validate -> persist -> return_result`
+* `AGENT_BEHAVIOR`: `before_editing_parser: verify: [input_contract, error_handling]`
 
 ---
 
