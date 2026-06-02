@@ -24,11 +24,23 @@ Use these files as normative references:
 
 ## Section Semantics (Core)
 
-- `FACTS`: current truths only, no mandatory or recommendation language.
+- `SYSTEM_MODEL`: system topology/shape (components, entities, storage layout, links, boundaries).
+- `FACTS`: assertion-level truths only, no mandatory or recommendation language.
 - `CONSTRAINTS`: hard rules/invariants; violation means invalid state.
 - `DECISION_RULES`: preferences/fallback choices, not hard requirements.
-- `PROCEDURES`: ordered steps with predictable result.
-- `CONCEPTS`: canonical glossary for ambiguous domain terms.
+- `PROCEDURES`: executable step sequences (ordered; conditional branches allowed).
+- `AGENT_BEHAVIOR`: agent-side preflight/verification policy (not domain runtime procedure chain).
+- `CONCEPTS`: canonical glossary for ambiguous domain terms. 
+
+Boundary rules:
+
+- Topology vs assertion: placement/layout belongs to `SYSTEM_MODEL`; invariant truth about behavior/source-of-truth belongs to `FACTS`.
+- Ordering invariant vs execution steps:
+  - invariant statement -> `FACTS` (e.g. "migrations complete before seeders start");
+  - action chain -> `PROCEDURES` (e.g. `run_migrations -> run_seeders`).
+- Agent checks vs product flow:
+  - "what to verify before edits" -> `AGENT_BEHAVIOR`;
+  - "how system task executes" -> `PROCEDURES`.
 
 ## Classification Priority
 
@@ -58,6 +70,8 @@ Never duplicate one statement across multiple sections just to be "safe".
    - mandatory language in `FACTS` -> move to `CONSTRAINTS`
    - soft preference in `CONSTRAINTS` -> move to `DECISION_RULES`
    - unordered actions in `PROCEDURES` -> rewrite as ordered steps
+   - topology statements misplaced in `FACTS` -> move to `SYSTEM_MODEL`
+   - runtime action chains inside `AGENT_BEHAVIOR` -> move to `PROCEDURES`
 
 ## Output Rules
 
@@ -72,6 +86,8 @@ Never duplicate one statement across multiple sections just to be "safe".
 - Mixing fact + requirement in one sentence.
 - Putting recommendations inside `FACTS`.
 - Using `CONSTRAINTS` for non-mandatory guidance.
+- Putting pure topology/location statements into `FACTS`.
+- Using `AGENT_BEHAVIOR` as a hidden implementation procedure list.
 - Leaving domain terms undefined when ambiguity is likely.
 
 ## Done Criteria
