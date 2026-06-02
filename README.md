@@ -1,100 +1,75 @@
-# Structured Agent Specs — итоги исследований
+# Structured Agent Specs Research
 
-Этот репозиторий фиксирует два связанных эксперимента о том, помогает ли структурированный YAML-контракт агентам лучше удерживать правила, чем обычный Markdown.
+Этот репозиторий больше не про тезис **"YAML лучше Markdown"**.
 
-Главная гипотеза из [`AgentSpecificationResearch.md`](AgentSpecificationResearch.md): преимущество может быть не в YAML как синтаксисе, а в том, что **структурированный контракт сужает пространство решений агента**.
+Текущий фокус:
 
-## 1. Прокси-эксперимент: `module_system`
+> Можно ли определить **стандарт semantic-контракта** (LSKC), который даёт агентам более предсказуемое поведение, чем обычные ad-hoc Markdown-инструкции.
 
-Подробный журнал: [`module_system_conversion_results/plan.md`](module_system_conversion_results/plan.md).
+Ключевая идея из [`AgentSpecificationResearch.md`](AgentSpecificationResearch.md):
+сравнивать нужно не синтаксис (`.yaml` vs `.md`), а **качество и строгость контракта**.
 
-Что проверялось:
+## Что в репозитории
 
-- цепочка `module_system.md` → YAML → reverse Markdown;
-- сколько фактов и ограничений сохраняется при преобразовании;
-- где появляются критичные потери: C0–C4 и HX (`healing`).
+### 1) Исследовательская рамка
 
-Ключевые результаты:
+- [`AgentSpecificationResearch.md`](AgentSpecificationResearch.md) — гипотезы, метрики, целевой дизайн экспериментов.
 
-- Лучший YAML для дальнейшего использования агентом: `module_system_conversion_results/test3/module_system-TEST.yaml`.
-- `test3` удержал смысл достаточно хорошо: max crit в L2 = C2.
-- `test2` непригоден как кодовая спека: C0 из-за смешения helpers в `runtime_overrides`.
-- Reverse Markdown нельзя оценивать наивно: `L3 vs L1` смешивает потери разных фаз; корректнее сначала смотреть `L3 vs L2`.
-- HX важен: модель может "починить" текст при обратной генерации Markdown, но это не доказывает качество исходного YAML.
+### 2) Новый стандарт
 
-Вывод:
+- [`semantic_specification_standard/Standard.md`](semantic_specification_standard/Standard.md) — LSKC (семантические секции: FACTS, CONSTRAINTS, PROCEDURES и т.д.).
+- [`semantic_specification_standard/Proxy.md`](semantic_specification_standard/Proxy.md) — прокси-конвертер Markdown → LSKC.
+- [`semantic_specification_standard/lskc.schema.json`](semantic_specification_standard/lskc.schema.json) — machine-checkable схема для структурной валидации.
+- [`semantic_specification_standard/README.md`](semantic_specification_standard/README.md) — локальная документация стандарта и workflow.
+- [`semantic_specification_standard/example/`](semantic_specification_standard/example/) — примеры спецификаций.
+  - [`ModuleSystem.yaml`](semantic_specification_standard/example/ModuleSystem.yaml)
+  - [`JSONSaveEditor.yaml`](semantic_specification_standard/example/JSONSaveEditor.yaml)
+  - [`DungeonRunner.yaml`](semantic_specification_standard/example/DungeonRunner.yaml)
+  - [`SolarExpanseSaveEditor.yaml`](semantic_specification_standard/example/SolarExpanseSaveEditor.yaml)
 
-> Конвертация Markdown → YAML может дать пригодный структурированный контракт, но только при проверке criticality. YAML усиливает контракт, но усиливает и ошибку в контракте: неверно разложенные слои выглядят для агента как авторитетное правило.
+### 3) Предыдущие эксперименты (legacy baseline)
 
-## 2. Прямой эксперимент: `direct_measurement`
+- [`module_system_conversion_results/plan.md`](module_system_conversion_results/plan.md) — прокси-цепочка md→yaml→md, criticality (C0–C4, HX).
+- [`direct_measurement/plan.md`](direct_measurement/plan.md) — прямой coding test (Dungeon Runner).
 
-Подробный протокол: [`direct_measurement/plan.md`](direct_measurement/plan.md).
+## Зачем сохранять старые результаты
 
-Среда: IDE Cursor, Agent/Composer. Temperature не фиксировалась (`Cursor default/unknown`), фиксировался только Reasoning (`Medium` / `Low`).
+Старые результаты не удалены, потому что это не "мусор", а **baseline**, который обосновал необходимость стандарта.
 
-Что проверялось:
+Они показали:
 
-- генерация мини-игры Dungeon Runner из `spec.md` vs `spec.yaml`;
-- удержание контракта CONFIG/STATE;
-- нарушения V1–V11, smoke/F1, schema mismatch UI↔engine;
-- токены Cursor Total и, где есть, Input/Output.
+- формат сам по себе не гарантирует надёжность;
+- структурность усиливает и правильные правила, и ошибочные правила;
+- без строгой схемы и чёткого контракта API/стыков агент делает флуктуации;
+- сравнение токенов по Total в agent-среде шумное из-за Cache Read.
 
-Ключевые результаты:
+Именно из этого появился текущий поворот: проектировать **валидируемый стандарт**, а не спорить "yaml vs md".
 
-- По слоям CONFIG/STATE все 8 прогонов прошли: `V1–V8 = 0`.
-- YAML не показал устойчивого преимущества по надёжности кода.
-- Доставка flaky: `project_yaml_3` сломался на `currentRoomId` vs `roomId`, `project_md_4` сломался на duplicate `goblin`.
-- Основная дырка была не в формате, а в задаче: `coding_task.md` не задавал схему `/status` (`roomId`, `enemies[]`) и семантику duplicate enemy id.
-- По токенам есть сигнал в пользу YAML, но Cursor Total сильно доминируется Cache Read. Самый чистый фрагмент: run2 GPT-5.5 Input md 23,6k vs yaml 12,7k.
+## Текущая формулировка гипотезы
 
-Вывод:
+> A validated semantic specification standard reduces agent solution space and improves reliability/predictability versus ad-hoc instructions.
 
-> На хорошо описанном coding task YAML не доказал лучшего удержания контракта. Он может быть дешевле по Input, но надежность доставки определялась пробелами API-контракта и стохастикой агентской среды.
+## Текущий статус
 
-## Общий итог
+| Направление | Статус |
+|-------------|--------|
+| YAML vs MD как чистый формат | не даёт сильного вывода |
+| Старые эксперименты | сохранены как baseline и обоснование pivot |
+| LSKC стандарт | сформирован (v1), добавлена schema |
+| Набор canonical examples | 4 домена (ModuleSystem, JSONSaveEditor, DungeonRunner, SolarExpanseSaveEditor) |
+| Валидация | структурная (JSON Schema) есть, семантическая — следующий этап |
+| Главная гипотеза | в работе, требует нового цикла agent-behavior тестов |
 
-Сильный вывод пока **не доказан**:
+## План
 
-> Structured contracts improve reliability and predictability of agent behavior.
-
-Что уже видно:
-
-- YAML/structured format помогает компактно выражать правила и потенциально снижает Input.
-- Если контракт неполный, структура не спасает: агент всё равно выбирает имена полей и стыки сам.
-- Прямое сравнение Total-токенов в Cursor Agent надо трактовать осторожно из-за Cache Read и разного числа шагов.
-- Для production-like спеки важнее не "похоже на YAML", а отсутствие C0/C1 по criticality.
-
-Текущий статус:
-
-| Направление | Итог |
-|-------------|------|
-| Конвертация md→yaml→md | полезно как прокси, но требует criticality-разбора |
-| Генерация кода md vs yaml | по CONFIG/STATE разницы нет |
-| Надёжность доставки | flaky, не привязана устойчиво к формату |
-| Токены | YAML выглядит дешевле, но Total шумный |
-| Главная гипотеза | не подтверждена и не опровергнута |
-
-## Что делать дальше
-
-Следующий тест должен быть не про обычную генерацию мини-приложения, а про **агентское поведение**:
-
-- policy compliance;
-- число tool calls / investigations;
-- recovery loops;
-- запреты вроде "не запускать тесты" или "не читать другие файлы";
-- API-first vs browser fallback;
-- variance на 5–10 повторных прогонах.
-
-Следующий этап:
-
-1. Взять лучший структурированный контракт (`module_system` test3-style).
-2. Сконструировать задачу с явными агентскими ловушками.
-3. Провести 5–10 прогонов Markdown vs YAML vs Hybrid в Cursor Agent.
-4. Считать не только code correctness, но и policy violations, steps, recovery behavior, Input/Output, variance.
+1. Вести новые прогоны уже в терминах **LSKC vs ad-hoc Markdown vs Hybrid**.
+2. Мерить не только correctness кода, но и:
+   - policy violations,
+   - step count / investigations,
+   - recovery loops,
+   - variance (5–10 повторов).
+3. Масштабировать example-suite до ~20 кейсов разных классов сложности (simple/medium/complex/edge) для более стабильной статистики.
 
 Кратко:
 
-> Dungeon Runner показал, что обычная кодогенерация слишком мягкая для главной гипотезы. Следующий честный тест должен мерить именно поведение агента во времени.
-
-### Заметки
-Надо улучшить спецификацию YAML
+> Старые результаты объяснили, почему "просто YAML" недостаточно. Новый этап — сделать проверяемый semantic-стандарт, который может быть лучше обычного Markdown в агентной среде.

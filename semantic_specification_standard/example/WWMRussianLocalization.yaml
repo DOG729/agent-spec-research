@@ -1,0 +1,254 @@
+SPEC_VERSION: "1.1"
+
+META:
+  project: wwm_russian
+  subsystem: Localization Pipeline + Validation + Packaging
+  source_repository: https://github.com/DOG729/wwm_russian
+  language: Python
+  runtime: Python ">=3.11"
+  domain: game_localization
+  package_policy: standard_library_plus_pyzstd
+
+CONTEXT:
+  applies_to:
+    - community localization workflow for Where Winds Meet
+    - translation contribution lifecycle via GitHub PR
+    - CI validation for translation_ru.tsv
+    - release build pipeline for game resource containers
+  assumptions:
+    - primary editable dataset is translation_ru.tsv
+    - identifiers are stable 16-char hex IDs
+    - game tags and placeholders are part of runtime contract, not plain text
+    - pipeline may compare RU and EN localization quality signals
+  exclusions:
+    - automatic MT quality scoring by semantic adequacy
+    - gameplay balance/content authoring
+    - editing of generated binary packages by hand
+
+SYSTEM_MODEL:
+  artifacts:
+    editable_translation: translation_ru.tsv
+    reference_translation: translation_en.tsv
+    game_assets:
+      - LocalData
+      - Package
+  ci_workflow:
+    file: .github/workflows/validate_tsv.yml
+    steps:
+      - validate_translation.py
+      - validate_tsv.py
+      - validate_tags.py
+  scripts:
+    translation_integrity: .github/scripts/validate_translation.py
+    tsv_structure: .github/scripts/validate_tsv.py
+    tag_integrity: .github/scripts/validate_tags.py
+    release_builder: .github/scripts/wwm_build.py
+    gui_packaging_tool: _soft/packing_unpacking/WWM_Extractor_Files_and_Texts_2.py
+  pipeline_stages:
+    - unpack_game_container
+    - extract_id_text_pairs
+    - apply_translation_by_id
+    - repack_dat_blocks
+    - rebuild_final_container
+  build_capabilities:
+    ci_builder: .github/scripts/wwm_build.py
+    local_builder_gui: _soft/packing_unpacking/WWM_Extractor_Files_and_Texts_2.py
+    local_builder_flow: full_pack(data + text + translation -> output binary)
+
+CONCEPTS:
+  immutable_tag_surface:
+    definition: Token/tag fragments that must survive translation unchanged for game parser stability.
+  id_based_translation_mapping:
+    definition: Replacement strategy where translated text is bound to exact 16-hex line IDs.
+  ru_only_blocking_error:
+    definition: Tag violation present in RU but absent in EN; treated as commit-blocking defect.
+  multi_line_tsv_entry:
+    definition: One logical translation record spanning several physical lines after first ID+TAB line.
+  container_roundtrip:
+    definition: Binary asset flow of unpack -> mutate text payload -> repack without structural corruption.
+  contributor_safe_edit:
+    definition: Edit process that minimizes merge conflicts and preserves TSV schema guarantees.
+
+FACTS:
+  id_format_contract:
+    statement: Translation IDs are expected to be 16-character hexadecimal strings.
+    confidence: authoritative
+  tsv_header_contract:
+    statement: translation TSV files require header starting with ID<TAB>OriginalText.
+    confidence: authoritative
+  tags_are_runtime_critical:
+    statement: Placeholders, braces, color/link tags, and control markers are treated as runtime-sensitive syntax.
+    confidence: authoritative
+  ru_en_comparison_logic:
+    statement: Some tag violations are warnings when present in both RU and EN, but blocking when RU-only.
+    confidence: authoritative
+
+CONSTRAINTS:
+  - id: preserve_tsv_schema
+    priority: critical
+    rule: Do not change TSV column count/order/separator contract for translation files.
+  - id: preserve_id_integrity
+    priority: critical
+    rule: IDs must remain unique and must not be reformatted or translated.
+  - id: preserve_runtime_tags
+    priority: critical
+    rule: Runtime tags/placeholders/braces/color or link syntax must remain structurally valid after edits.
+  - id: block_ru_only_tag_breakage
+    priority: critical
+    rule: Tag errors introduced uniquely in RU content must fail validation and block commit flow.
+  - id: avoid_tab_in_text_payload
+    priority: high
+    rule: Additional tab characters inside text payload are forbidden because they break parsing.
+  - id: keep_non_target_assets_untouched
+    priority: high
+    rule: Packaging pipeline must not mutate non-target binary structure beyond intended translated payload changes.
+  - id: deterministic_id_mapping
+    priority: high
+    rule: Translation replacement must map strictly by ID keys, not by fuzzy text matching.
+
+DECISION_RULES:
+  translation_application_mode:
+    preferred: id_keyed_replacement
+    rationale: Stable IDs are the only robust mapping across updates and reordered text blocks.
+  validation_gate_mode:
+    preferred: fail_fast_on_critical_schema_or_ru_only_errors
+    rationale: Prevents shipping builds with parser-breaking localization defects.
+  contributor_workflow_mode:
+    preferred: fork_pr_with_documented_guidelines
+    rationale: Scales community collaboration and reduces accidental format regressions.
+  build_pipeline_mode:
+    preferred: staged_extract_apply_repack
+    rationale: Improves debuggability and allows verification at each artifact boundary.
+  builder_tool_selection:
+    preferred: use_wwm_build_py_for_ci_and_WWM_Extractor_Files_and_Texts_2_py_for_interactive_or_recovery_builds
+    rationale: CLI is reproducible for automation, while GUI/full-pack utility helps controlled local rebuild and diagnostics.
+
+PROCEDURES:
+  validate_translation_file:
+    steps:
+      - read_tsv_utf8_with_bom_tolerance
+      - assert_header_format
+      - scan_entries_for_id_and_tab_structure
+      - detect_duplicate_or_invalid_ids
+      - flag_empty_or_tab_broken_text_fields
+    expected_result:
+      tsv_structurally_valid: true
+  validate_runtime_tags:
+    steps:
+      - parse_entries_and_collect_tag_errors_by_id
+      - compare_ru_and_en_error_sets_when_en_available
+      - classify_ru_only_as_blocking
+      - classify_shared_or_en_only_as_warning
+      - emit_error_codes_with_context
+    expected_result:
+      no_ru_only_tag_breakage: true
+  community_contribution_cycle:
+    steps:
+      - fork_repository
+      - edit_target_ranges_in_translation_ru_tsv
+      - run_local_validation_or_ci_checks
+      - commit_and_push_changes
+      - open_pull_request_for_review
+    expected_result:
+      pr_ready_for_maintainer_review: true
+  release_packaging_pipeline:
+    steps:
+      - unpack_input_game_file_blocks
+      - extract_text_catalog_csv
+      - apply_translation_by_id
+      - repack_text_into_dat_blocks
+      - build_final_output_containers
+    expected_result:
+      translated_release_artifacts_generated: true
+  local_full_pack_via_gui_tool:
+    steps:
+      - open_WWM_Extractor_Files_and_Texts_2_py
+      - select_base_folder_with_data_and_text
+      - select_translation_file_csv_or_tsv
+      - run_full_pack_to_generate_output_bin
+      - verify_generated_binary_exists
+    expected_result:
+      localized_binary_built_locally: true
+
+AGENT_BEHAVIOR:
+  before_editing_translation_logic:
+    verify:
+      - preserve_tsv_schema
+      - preserve_id_integrity
+      - deterministic_id_mapping
+  before_editing_tag_validation:
+    verify:
+      - preserve_runtime_tags
+      - block_ru_only_tag_breakage
+  before_editing_build_pipeline:
+    verify:
+      - keep_non_target_assets_untouched
+      - build_pipeline_mode
+  when_uncertain:
+    actions:
+      - prefer_docs_localization_and_tags_rules
+      - avoid_mass_reformatting_translation_files
+      - run_validation_scripts_before_claiming_success
+
+ANTI_PATTERNS:
+  - mistake: Editing translation lines without preserving placeholders and tag syntax.
+    why_wrong: Game parser or UI formatting can break even when text looks linguistically correct.
+    correction: Treat tag surface as immutable contract and validate after edits.
+  - mistake: Applying replacements by original text matching.
+    why_wrong: Duplicate or changed source strings produce incorrect substitution drift.
+    correction: Use ID-keyed replacement only.
+  - mistake: Inserting tabs inside translated payload.
+    why_wrong: TSV parser splits columns incorrectly and damages downstream tooling.
+    correction: Keep tabs only as ID/text separator.
+  - mistake: Repacking binaries without staged validation checkpoints.
+    why_wrong: Structural corruption is harder to localize and rollback.
+    correction: Preserve extract/apply/repack stages with explicit checks.
+
+EXAMPLES:
+  valid_entry_shape:
+    header: "ID\tOriginalText"
+    row: "a0efdcb60026c4cd\tТекст перевода с {0} и #Gтегом#E"
+  invalid_entry_shape:
+    row: "a0efdcb60026c4cd Текст без таба"
+    reason: missing_tab_separator
+  valid_tag_preservation:
+    source: "Login for 7 Days ({0}/7)"
+    translation: "Вход в течение 7 дней ({0}/7)"
+  invalid_tag_preservation:
+    source: "Login for 7 Days ({0}/7)"
+    translation: "Вход в течение 7 дней (0/7)"
+    reason: placeholder_removed
+
+REFERENCES:
+  EXTERNAL_SOURCES:
+    - https://github.com/DOG729/wwm_russian
+    - https://github.com/DOG729/wwm_russian/blob/main/README.md
+  DEPENDS_ON:
+    - wwm_russian/README.md
+    - wwm_russian/docs/localization.md
+    - wwm_russian/docs/instruction_contribution.md
+    - wwm_russian/.github/workflows/validate_tsv.yml
+    - wwm_russian/.github/scripts/validate_translation.py
+    - wwm_russian/.github/scripts/validate_tsv.py
+    - wwm_russian/.github/scripts/validate_tags.py
+    - wwm_russian/.github/scripts/wwm_build.py
+  RELATED_CONSTRAINTS:
+    validate_translation_file:
+      - preserve_tsv_schema
+      - preserve_id_integrity
+      - avoid_tab_in_text_payload
+    validate_runtime_tags:
+      - preserve_runtime_tags
+      - block_ru_only_tag_breakage
+    release_packaging_pipeline:
+      - deterministic_id_mapping
+      - keep_non_target_assets_untouched
+    local_full_pack_via_gui_tool:
+      - deterministic_id_mapping
+      - keep_non_target_assets_untouched
+  RELATED_FACTS:
+    validation_gate_mode:
+      - ru_en_comparison_logic
+    translation_application_mode:
+      - id_format_contract
+      - tsv_header_contract

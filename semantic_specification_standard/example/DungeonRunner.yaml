@@ -1,0 +1,253 @@
+SPEC_VERSION: "1.1"
+
+META:
+  project: Dungeon Runner
+  subsystem: Game Engine + HTTP Runner
+  language: JavaScript
+  runtime: Node.js ">=18"
+  module_system: ES modules
+  package_policy: no_npm_packages
+
+CONTEXT:
+  applies_to:
+    - direct_measurement benchmark task
+    - single-player local runtime
+    - file-based state persistence
+  assumptions:
+    - storage backend is JSON files on disk
+    - io layer exports loadConfig, loadState, saveState
+  exclusions:
+    - multiplayer
+    - cloud sync
+    - non-http transports
+
+SYSTEM_MODEL:
+  storage:
+    config_file: core/data.json
+    state_file: core/state.json
+    loading_policy:
+      config: load_once_at_server_startup
+      state: load_per_request
+  core_files:
+    io: core/io.js
+    engine: engine.js
+    server: server.js
+    ui: ui/index.html
+  server:
+    protocol: http
+    port: 3000
+  api_routes:
+    - GET /
+    - GET /status
+    - POST /room/:id
+    - POST /item/:id
+    - POST /init
+  entities:
+    config:
+      - enemies
+      - items
+      - rooms
+      - balance
+    state:
+      - player
+      - current_room_id
+      - defeated_enemies
+      - session_started_at
+
+CONCEPTS:
+  config:
+    definition: Runtime-immutable game design data loaded from data.json once at startup.
+  state:
+    definition: Runtime-mutable player/session data loaded from state.json and saved after mutations.
+  room_processing:
+    definition: Sequential combat processing of every enemy listed in a room.
+  inventory_capacity:
+    definition: Maximum allowed item count from CONFIG.balance.max_inventory.
+  level_up_threshold:
+    definition: CONFIG.balance.xp_per_level * STATE.player.level.
+
+FACTS:
+  file_roles:
+    statement: data.json stores static design/balance values; state.json stores mutable runtime progress.
+    confidence: authoritative
+  combat_sources:
+    statement: Damage, XP reward, and loot source from CONFIG.enemies by enemy id.
+    confidence: authoritative
+  progression_source:
+    statement: Level-up threshold depends on CONFIG.balance.xp_per_level and current STATE.player.level.
+    confidence: authoritative
+  item_effect_source:
+    statement: Item effect type and value come from CONFIG.items[itemId].
+    confidence: authoritative
+  ui_data_source:
+    statement: Browser UI consumes only HTTP API responses, never direct JSON file reads.
+    confidence: authoritative
+
+CONSTRAINTS:
+  - id: no_data_write_runtime
+    priority: critical
+    rule: core/data.json must never be written at runtime.
+  - id: no_data_read_inside_handlers
+    priority: high
+    rule: fs.readFile(data.json) must not be called inside request handlers or engine functions.
+  - id: config_read_only
+    priority: critical
+    rule: CONFIG must not be mutated during gameplay.
+  - id: state_is_only_runtime_target
+    priority: critical
+    rule: Runtime mutations must target STATE and persist through saveState(STATE).
+  - id: no_hardcoded_combat_numbers
+    priority: critical
+    rule: Combat logic must not use numeric literals for enemy damage, xp reward, loot, or thresholds.
+  - id: no_hardcoded_inventory_limit
+    priority: high
+    rule: Inventory capacity checks must use CONFIG.balance.max_inventory.
+  - id: hp_source_is_state
+    priority: high
+    rule: Current player HP must be read from STATE.player.hp, not CONFIG.
+  - id: entity_must_exist_in_config
+    priority: high
+    rule: New enemy/item ids must exist in data.json before code references them.
+  - id: ui_api_only
+    priority: high
+    rule: UI must not fetch data.json or state.json directly.
+
+DECISION_RULES:
+  save_strategy:
+    preferred: save_after_meaningful_mutation
+    rationale: Keeps state consistent across room, item, and init actions.
+  room_combat_result_shape:
+    preferred: return_alive_levelup_loot
+    rationale: Provides stable API for UI and diagnostics.
+  status_response_style:
+    preferred: human_readable_runtime_snapshot
+    rationale: UI should render game status without local file assumptions.
+
+PROCEDURES:
+  process_room:
+    steps:
+      - validate_room_id_in_CONFIG.rooms
+      - iterate_room_enemies_sequentially
+      - subtract_enemy_damage_from_STATE.player.hp
+      - if_alive_add_xp_and_random_loot
+      - evaluate_level_up_threshold
+      - enforce_inventory_capacity_before_push
+      - update_STATE.current_room_id
+      - save_state
+      - return_result_object
+    expected_result:
+      output_shape:
+        - alive
+        - levelUp
+        - loot
+  use_item:
+    steps:
+      - verify_item_exists_in_inventory
+      - read_effect_and_value_from_CONFIG.items
+      - apply_effect_to_STATE
+      - remove_item_from_inventory
+      - save_state
+    expected_result:
+      item_applied: true
+  init_player:
+    steps:
+      - set_hp_from_CONFIG.balance.player_base_hp
+      - reset_xp_level_inventory
+      - set_current_room_to_first_CONFIG.rooms_key
+      - clear_defeated_enemies
+      - set_session_started_at_iso
+      - save_state
+    expected_result:
+      initialized: true
+  get_status:
+    steps:
+      - resolve_current_room_from_STATE.current_room_id
+      - compute_xp_to_next_level
+      - return_runtime_status_object
+    expected_result:
+      includes:
+        - room
+        - hp
+        - maxHp
+        - level
+        - xp
+        - xpToNextLevel
+        - inventory
+        - exits
+  server_boot:
+    steps:
+      - load_CONFIG_once
+      - create_http_server
+      - map_routes_to_engine_functions
+      - serve_ui_html_on_root
+      - load_STATE_per_request
+      - start_listening_on_3000
+    expected_result:
+      server_ready: true
+
+AGENT_BEHAVIOR:
+  before_engine_changes:
+    verify:
+      - no_hardcoded_combat_numbers
+      - config_read_only
+      - hp_source_is_state
+  before_server_changes:
+    verify:
+      - state_is_only_runtime_target
+      - no_data_read_inside_handlers
+  before_ui_changes:
+    verify:
+      - ui_api_only
+      - status_response_style
+  when_uncertain:
+    actions:
+      - check_CLASSIFICATION_PRIORITY
+      - prefer_CONSTRAINTS_for_mandatory_language
+      - avoid_inventing_new_data_sources
+
+ANTI_PATTERNS:
+  - mistake: Hardcoding combat or progression constants in engine logic.
+    why_wrong: Breaks design-config contract and causes drift from data.json balance.
+    correction: Read values from CONFIG.enemies and CONFIG.balance.
+  - mistake: Reading current player runtime values from CONFIG.
+    why_wrong: CONFIG is static and not the source of live session truth.
+    correction: Read runtime values from STATE.
+  - mistake: Re-loading data.json inside request handler.
+    why_wrong: Violates startup-only config loading and increases inconsistency risk.
+    correction: Load CONFIG once at server boot and pass it explicitly.
+  - mistake: UI reads local JSON files directly.
+    why_wrong: Breaks API boundary and runtime invariants.
+    correction: Consume only /status and action endpoints.
+
+EXAMPLES:
+  valid_combat_source:
+    damage: CONFIG.enemies[enemyId].damage
+    xp_reward: CONFIG.enemies[enemyId].xp_reward
+  invalid_combat_source:
+    damage: 7
+    xp_reward: 10
+  valid_inventory_check:
+    condition: STATE.player.inventory.length < CONFIG.balance.max_inventory
+  invalid_inventory_check:
+    condition: inventory.length < 10
+
+REFERENCES:
+  DEPENDS_ON:
+    - direct_measurement/spec.md
+    - direct_measurement/coding_task.md
+    - direct_measurement/core/data.json
+    - direct_measurement/core/state.json
+    - direct_measurement/core/io.js
+  RELATED_CONSTRAINTS:
+    loading_policy:
+      - no_data_read_inside_handlers
+      - config_read_only
+    ui_data_source:
+      - ui_api_only
+    combat_sources:
+      - no_hardcoded_combat_numbers
+  RELATED_FACTS:
+    level_up_threshold:
+      - progression_source
+    item_usage:
+      - item_effect_source

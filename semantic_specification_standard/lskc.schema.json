@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/DOG729/agent-spec-research/semantic_specification_standard/lskc.schema.json",
+  "title": "LLM Semantic Knowledge Contract (LSKC) v1.1-draft",
+  "type": "object",
+  "required": [
+    "SPEC_VERSION",
+    "CONTEXT",
+    "FACTS",
+    "CONSTRAINTS",
+    "PROCEDURES"
+  ],
+  "properties": {
+    "SPEC_VERSION": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "LSKC semantic format version, e.g. 1.1"
+    },
+    "META": {
+      "$ref": "#/$defs/sectionObject"
+    },
+    "CONTEXT": {
+      "$ref": "#/$defs/sectionObject"
+    },
+    "SYSTEM_MODEL": {
+      "$ref": "#/$defs/sectionObject"
+    },
+    "CONCEPTS": {
+      "$ref": "#/$defs/sectionObject"
+    },
+    "FACTS": {
+      "$ref": "#/$defs/sectionObject"
+    },
+    "CONSTRAINTS": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/sectionObject"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/constraintItem"
+          }
+        }
+      ]
+    },
+    "DECISION_RULES": {
+      "$ref": "#/$defs/sectionObject"
+    },
+    "PROCEDURES": {
+      "$ref": "#/$defs/sectionObject"
+    },
+    "AGENT_BEHAVIOR": {
+      "$ref": "#/$defs/sectionObject"
+    },
+    "ANTI_PATTERNS": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/sectionObject"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/antiPatternItem"
+          }
+        }
+      ]
+    },
+    "EXAMPLES": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/sectionObject"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/scalarOrStructured"
+          }
+        }
+      ]
+    },
+    "REFERENCES": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/sectionObject"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sectionObject": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/scalarOrStructured"
+      }
+    },
+    "scalarOrStructured": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/scalarOrStructured"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/scalarOrStructured"
+          }
+        }
+      ]
+    },
+    "constraintItem": {
+      "type": "object",
+      "required": [
+        "rule"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "string"
+        },
+        "rule": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": true
+    },
+    "antiPatternItem": {
+      "type": "object",
+      "required": [
+        "mistake"
+      ],
+      "properties": {
+        "mistake": {
+          "type": "string",
+          "minLength": 1
+        },
+        "why_wrong": {
+          "type": "string"
+        },
+        "correction": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

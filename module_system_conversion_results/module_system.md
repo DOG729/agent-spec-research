@@ -1,14 +1,14 @@
 ---
 name: navigator-module-system
 description: >-
-  Navigator CMS modular architecture (Laravel + Filament). Use when creating,
+  UTICMS modular architecture (Laravel + Filament). Use when creating,
   installing, configuring, or debugging modules; working with module.json,
   env.json, modules.env, module_settings; ModuleInstallerService,
   autodiscovery, Filament admin integration, or module helpers/caching.
 version: 2
 ---
 
-# Navigator CMS — Module System
+# UTICMS — Module System
 
 Stack: PHP >=8.2, Laravel 12.x/13.x, Filament 5.x.
 

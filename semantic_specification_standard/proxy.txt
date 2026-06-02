@@ -1,0 +1,374 @@
+SPEC_VERSION: "1.0"
+
+META:
+
+name: "LLM Semantic Knowledge Contract"
+short_name: "LSKC"
+
+purpose: >
+Universal semantic specification format
+optimized for humans, LLMs, agents,
+and automated processing.
+
+philosophy: >
+
+```
+Information must be organized by meaning,
+not by document structure.
+
+Every statement belongs to exactly one
+semantic category.
+
+Semantic categories must remain stable
+across all specifications.
+```
+
+SECTION_DEFINITIONS:
+
+CONTEXT:
+
+```
+purpose: >
+  Define scope, assumptions,
+  applicability, and boundaries.
+
+question: >
+  Under what conditions is this
+  specification valid?
+
+allowed_content:
+
+  - assumptions
+  - environment
+  - scope
+  - exclusions
+
+forbidden_content:
+
+  - mandatory_rules
+  - procedures
+```
+
+SYSTEM_MODEL:
+
+```
+purpose: >
+  Describe architecture,
+  components, relationships,
+  and structure.
+
+question: >
+  What exists in the system?
+
+allowed_content:
+
+  - components
+  - services
+  - layers
+  - relationships
+```
+
+FACTS:
+
+```
+purpose: >
+  Store authoritative truths.
+
+question: >
+  What is objectively true?
+
+allowed_content:
+
+  - verified_statement
+  - system_behavior
+  - implementation_truth
+
+forbidden_content:
+
+  - recommendation
+  - preference
+  - procedure
+```
+
+CONSTRAINTS:
+
+```
+purpose: >
+  Store mandatory rules.
+
+question: >
+  What must never be violated?
+
+allowed_content:
+
+  - mandatory_rule
+  - invariant
+  - safety_rule
+
+priority_levels:
+
+  - critical
+  - high
+  - medium
+  - low
+```
+
+DECISION_RULES:
+
+```
+purpose: >
+  Guide selection between
+  multiple valid choices.
+
+question: >
+  How should choices be made?
+
+allowed_content:
+
+  - preference
+  - optimization_strategy
+  - selection_logic
+```
+
+PROCEDURES:
+
+```
+purpose: >
+  Describe repeatable action sequences.
+
+question: >
+  How is a task performed?
+
+allowed_content:
+
+  - workflow
+  - checklist
+  - sequence
+```
+
+AGENT_BEHAVIOR:
+
+```
+purpose: >
+  Control agent reasoning
+  and investigation strategy.
+
+question: >
+  How should an agent behave?
+
+allowed_content:
+
+  - investigation_rules
+  - verification_rules
+  - stop_conditions
+  - escalation_rules
+```
+
+ANTI_PATTERNS:
+
+```
+purpose: >
+  Capture known mistakes.
+
+question: >
+  What commonly causes failures?
+
+allowed_content:
+
+  - invalid_assumption
+  - common_error
+  - misconception
+```
+
+EXAMPLES:
+
+```
+purpose: >
+  Demonstrate correct and incorrect usage.
+
+question: >
+  What does this look like in practice?
+
+allowed_content:
+
+  - valid_example
+  - invalid_example
+```
+
+CONVERSION_RULES:
+
+classification_order:
+
+```
+- CONSTRAINTS
+- FACTS
+- DECISION_RULES
+- PROCEDURES
+- ANTI_PATTERNS
+- EXAMPLES
+- CONTEXT
+- SYSTEM_MODEL
+```
+
+extraction_policy:
+
+```
+semantic_extraction: true
+
+preserve_meaning: true
+
+preserve_document_structure: false
+
+remove_repetition: true
+
+split_compound_statements: true
+```
+
+classification:
+
+```
+CONSTRAINTS:
+
+  indicators:
+
+    - must
+    - mandatory
+    - required
+    - forbidden
+    - prohibited
+    - never
+    - always
+
+  validation_question: >
+    Does violating this statement
+    create an invalid system state?
+
+FACTS:
+
+  validation_question: >
+    Does this statement describe
+    current reality?
+
+DECISION_RULES:
+
+  indicators:
+
+    - should
+    - recommended
+    - preferred
+    - generally
+
+  validation_question: >
+    Is this guidance rather than
+    a requirement?
+
+PROCEDURES:
+
+  indicators:
+
+    - first
+    - then
+    - after
+    - finally
+    - step
+
+  validation_question: >
+    Does this describe an ordered
+    action sequence?
+
+ANTI_PATTERNS:
+
+  indicators:
+
+    - avoid
+    - common mistake
+    - incorrect assumption
+    - do not assume
+```
+
+VALIDATION_RULES:
+
+required_sections:
+
+```
+- META
+```
+
+semantic_consistency:
+
+```
+FACTS:
+  must_not_contain:
+    - recommendation
+    - preference
+
+CONSTRAINTS:
+  must_not_contain:
+    - example
+
+PROCEDURES:
+  must_be_ordered: true
+
+EXAMPLES:
+  must_not_override:
+    - CONSTRAINTS
+```
+
+AGENT_INTERPRETATION:
+
+priority_order:
+
+```
+- CONSTRAINTS
+- FACTS
+- DECISION_RULES
+- PROCEDURES
+- EXAMPLES
+```
+
+conflict_resolution:
+
+```
+if_constraint_conflicts_with_example:
+  use: CONSTRAINTS
+
+if_fact_conflicts_with_example:
+  use: FACTS
+
+if_decision_rule_conflicts_with_constraint:
+  use: CONSTRAINTS
+```
+
+uncertainty_policy:
+
+```
+action: >
+  Search for authoritative facts
+  before making assumptions.
+```
+
+OUTPUT_TEMPLATE:
+
+SPEC_VERSION:
+
+META:
+
+CONTEXT:
+
+SYSTEM_MODEL:
+
+FACTS:
+
+CONSTRAINTS:
+
+DECISION_RULES:
+
+PROCEDURES:
+
+AGENT_BEHAVIOR:
+
+ANTI_PATTERNS:
+
+EXAMPLES:
+
+REFERENCES:

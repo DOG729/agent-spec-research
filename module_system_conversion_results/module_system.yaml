@@ -3,7 +3,7 @@ conforms_to:
   convention_version: 1
 
 version: 2
-name: "Navigator CMS - Module System (current)"
+name: "UTICMS - Module System (current)"
 
 stack:
   php: ">=8.2"

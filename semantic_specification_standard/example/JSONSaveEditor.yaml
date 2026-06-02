@@ -1,0 +1,272 @@
+SPEC_VERSION: "1.1"
+
+META:
+
+  project_name: JSON Save Editor
+  language: Python
+  gui_framework: PySide6
+
+  purpose: >
+    Desktop application for viewing,
+    editing, validating and saving
+    game save files stored as JSON.
+
+CONTEXT:
+
+  applies_to:
+
+    - desktop_application
+    - local_json_files
+
+  assumptions:
+
+    - save files use UTF-8 encoding
+    - save files are valid JSON objects
+
+  exclusions:
+
+    - multiplayer synchronization
+    - cloud storage
+
+SYSTEM_MODEL:
+
+  components:
+
+    save_loader:
+      responsibility: load JSON save file
+
+    save_editor:
+      responsibility: edit save data
+
+    validation_engine:
+      responsibility: validate modified values
+
+    save_writer:
+      responsibility: write save file
+
+    main_window:
+      responsibility: GUI container
+
+  relationships:
+
+    - save_loader -> save_editor
+    - save_editor -> validation_engine
+    - validation_engine -> save_writer
+
+CONCEPTS:
+
+  unknown_fields:
+    definition: JSON keys not explicitly recognized by editor UI but present in source save.
+
+  backup_file:
+    definition: Pre-write snapshot used to restore previous save state on failure.
+
+  metadata_fields:
+    definition: Internal application fields that are read-only for users.
+
+FACTS:
+
+  save_format:
+
+    statement: >
+      Save files are stored as JSON documents.
+    confidence: authoritative
+
+  file_encoding:
+
+    statement: >
+      All save files use UTF-8 encoding.
+    confidence: authoritative
+
+  root_structure:
+
+    statement: >
+      Root element is a JSON object.
+
+  autosave_default:
+
+    statement: >
+      Autosave is disabled by default.
+    confidence: inferred
+
+CONSTRAINTS:
+
+  - id: preserve_json_validity
+
+    priority: critical
+
+    rule: >
+      Application must never save invalid JSON.
+
+  - id: preserve_unknown_fields
+
+    priority: critical
+
+    rule: >
+      Unknown fields must not be removed.
+
+  - id: backup_before_write
+
+    priority: high
+
+    rule: >
+      Backup file must be created before overwrite.
+
+  - id: read_only_metadata
+
+    priority: medium
+
+    rule: >
+      Internal metadata fields cannot be edited.
+
+DECISION_RULES:
+
+  file_save_strategy:
+
+    preferred: overwrite_with_backup
+
+    rationale: >
+      Simplifies workflow while preserving safety.
+
+  editor_mode:
+
+    preferred: tree_view
+
+    rationale: >
+      Tree structure is easier to navigate
+      than raw JSON text.
+
+  validation_strategy:
+
+    preferred: validate_on_change
+
+    rationale: >
+      Errors should be detected immediately.
+
+PROCEDURES:
+
+  open_save_file:
+
+    steps:
+
+      - select_file
+      - read_json
+      - validate_json
+      - populate_tree_view
+
+    expected_result:
+
+      save_loaded_into_editor: true
+
+  save_changes:
+
+    steps:
+
+      - validate_current_state
+      - create_backup
+      - serialize_json
+      - write_file
+
+    expected_result:
+
+      save_written_successfully: true
+
+  restore_backup:
+
+    steps:
+
+      - select_backup
+      - replace_current_file
+      - reload_save
+
+AGENT_BEHAVIOR:
+
+  before_modifying_save_logic:
+
+    verify:
+
+      - preserve_json_validity
+      - preserve_unknown_fields
+
+  before_modifying_gui:
+
+    inspect:
+
+      - main_window
+      - save_editor
+
+  when_uncertain:
+
+    actions:
+
+      - inspect_related_component
+      - search_for_existing_behavior
+
+  stop_conditions:
+
+    - missing_save_format_definition
+
+ANTI_PATTERNS:
+
+  - mistake: >
+      Rebuild JSON structure manually.
+
+    why_wrong: >
+      May remove unknown fields.
+
+    correction: >
+      Modify existing structure only.
+
+  - mistake: >
+      Save directly without backup.
+
+    why_wrong: >
+      Corrupt save cannot be recovered.
+
+    correction: >
+      Create backup first.
+
+  - mistake: >
+      Trust user input without validation.
+
+    why_wrong: >
+      Invalid values can corrupt save.
+
+    correction: >
+      Validate before write.
+
+EXAMPLES:
+
+  valid_save:
+
+    player:
+
+      name: Hero
+
+      level: 25
+
+      gold: 5000
+
+      inventory:
+
+        - sword
+        - shield
+
+  invalid_save:
+
+    player:
+
+      level: "twenty five"
+
+REFERENCES:
+
+  related_specs:
+
+    - save_format_spec
+  RELATED_CONSTRAINTS:
+    save_format:
+      - preserve_json_validity
+      - preserve_unknown_fields
+  DEPENDS_ON:
+    - save_format_spec
+    - backup_policy

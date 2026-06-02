@@ -1,0 +1,201 @@
+SPEC_VERSION: "1.1"
+
+META:
+  project: UTICMS
+  subsystem: Module System
+  version: 2
+
+CONTEXT:
+  stack:
+    php: ">=8.2"
+    laravel: "12.x,13.x"
+    filament: "5.x"
+  applies_to:
+    - module_runtime
+    - module_installation
+    - module_discovery
+    - module_configuration
+
+SYSTEM_MODEL:
+  filesystem:
+    modules_root: "modules/"
+    module_structure:
+      - module.json
+      - env.json
+      - Providers/*ServiceProvider.php
+      - Database/Migrations/*.php
+      - Database/Seeders/*.php
+      - Filament/Admin/Resources/*
+      - Filament/Settings/*
+      - Filament/Install.php
+  databases:
+    modules_table:
+      fields:
+        - name
+        - version
+        - is_active
+        - priority
+        - env
+        - path
+        - namespace
+        - installed_at
+    module_settings_table:
+      fields:
+        - module_id
+        - key
+        - value
+        - type
+        - description
+        - is_public
+  services:
+    - ModuleInstallerService
+    - ModuleAutoDiscoveryService
+    - ModuleNavigationService
+
+CONCEPTS:
+  module:
+    definition: Deployable package under modules/<ModuleName> with manifest and providers.
+  namespace:
+    definition: Runtime identity key used by discovery and Filament integration.
+  modules_env:
+    definition: Runtime override storage for env.json values.
+  module_settings:
+    definition: Runtime operational key-value store for module behavior.
+
+FACTS:
+  module_manifest:
+    required_fields:
+      - name
+      - providers
+  dependency_source:
+    statement: >
+      Dependencies are stored and validated
+      from module.json.
+    confidence: authoritative
+  path_storage:
+    statement: >
+      Database path values use
+      modules/<ModuleName> format.
+    confidence: authoritative
+  env_model:
+    statement: >
+      env.json provides defaults.
+    statement_2: >
+      modules.env stores runtime overrides.
+  env_priority:
+    statement: >
+      Database override has priority over env.json.
+    confidence: authoritative
+  module_settings_purpose:
+    statement: >
+      module_settings stores operational runtime values.
+  module_identity:
+    statement: >
+      Namespace is runtime-critical for discovery.
+
+CONSTRAINTS:
+  - priority: critical
+    rule: >
+      Path format must remain
+      modules/<ModuleName>.
+  - priority: critical
+    rule: >
+      Namespace must remain available
+      for Filament discovery.
+  - priority: critical
+    rule: >
+      Dependencies must be resolved
+      from module.json.
+  - priority: high
+    rule: >
+      module_settings must not duplicate
+      env.json values without necessity.
+  - priority: high
+    rule: >
+      UI writes only to modules.env.
+
+DECISION_RULES:
+  configuration_resolution:
+    preferred_order:
+      - modules.env
+      - env.json
+  module_discovery:
+    preferred_source:
+      - database
+      - filesystem_fallback
+
+PROCEDURES:
+  install_module:
+    steps:
+      - run_migrations
+      - run_seeders
+      - create_module_record
+      - activate_module
+      - rebuild_cache
+  autodiscovery:
+    steps:
+      - scan_filesystem
+      - sync_database
+      - update_version
+      - update_priority
+      - update_path
+  navigation_build:
+    steps:
+      - load_module_json
+      - read_navigation_config
+      - generate_navigation
+      - cache_result
+
+AGENT_BEHAVIOR:
+  before_modifying_module_system:
+    verify:
+      - path_contract
+      - namespace_usage
+      - dependency_source
+  before_modifying_configuration:
+    verify:
+      - env_settings_model
+      - module_settings_model
+  when_uncertain:
+    inspect:
+      - ModuleInstallerService
+      - ModuleAutoDiscoveryService
+      - ModuleNavigationService
+
+ANTI_PATTERNS:
+  - mistake: >
+      Reintroduce module_dependencies table.
+    correction: >
+      Use module.json dependencies.
+  - mistake: >
+      Store editable metadata in modules.env.
+    correction: >
+      Use modules.env only for env.json overrides.
+  - mistake: >
+      Use slug as module identity.
+    correction: >
+      Use namespace as identity.
+  - mistake: >
+      Mix ModuleName and modules/ModuleName path formats.
+    correction: >
+      Use modules/<ModuleName> consistently.
+
+EXAMPLES:
+  valid_path:
+    value: modules/Blog
+  invalid_path:
+    value: Blog
+
+REFERENCES:
+  services:
+    - app/Services/ModuleInstallerService.php
+    - app/Services/ModuleAutoDiscoveryService.php
+    - app/Services/ModuleNavigationService.php
+  RELATED_CONSTRAINTS:
+    dependency_source:
+      - "Dependencies must be resolved from module.json."
+  DEPENDS_ON:
+    - module.json
+    - env.json
+    - modules.env
+

@@ -6,7 +6,7 @@ version: 2
 name: navigator-module-system
 kind: domain
 applies_to:
-  - Navigator CMS modular architecture
+  - UTICMS modular architecture
   - Laravel + Filament module lifecycle
 
 stack:

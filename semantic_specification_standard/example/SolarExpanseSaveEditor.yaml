@@ -1,0 +1,246 @@
+SPEC_VERSION: "1.1"
+
+META:
+  project: Solar Expanse Save Editor
+  subsystem: Desktop Save Editor
+  source_repository: https://github.com/dog729tools/Solar-Expanse-Save-Editor
+  language: Python
+  runtime: Python ">=3.10"
+  gui_framework: PyQt5
+  package_policy: pip_requirements_only
+
+CONTEXT:
+  applies_to:
+    - desktop utility for local save editing
+    - gzip-compressed Solar Expanse save files
+    - unity-json style save payloads with custom tokens
+  assumptions:
+    - source files are .json.gz archives
+    - root save object contains companyDataSave and resource blocks
+    - users edit money, faction resources, and planet resource rows
+  exclusions:
+    - game runtime logic changes
+    - cloud sync
+    - multiplayer state management
+
+SYSTEM_MODEL:
+  data_flow:
+    - select .json.gz file from saves directory
+    - decompress bytes to utf-8 text
+    - convert non-standard Unity/Json.NET tokens into JSON-safe placeholders
+    - inject wrapped fields for parser compatibility
+    - parse into mutable Python dict tree
+    - apply UI-driven mutations to selected fields
+    - dump JSON while preserving save semantics
+    - restore original token syntax and compress back to .json.gz
+  modules:
+    main_ui: save_editor/main.py
+    data_projection: save_editor/save_model.py
+    format_adapter: save_editor/unity_json.py
+    localization: save_editor/i18n.py
+    resource_localization: save_editor/resource_i18n.py
+  editable_domains:
+    - companyDataSave.$rcontent[*].money
+    - objectInfoDatas.$rcontent[*].listRowResourcesData.$rcontent[*].value
+    - ObjectInfoSaves.$rcontent[*].ListRowResourcesData.$rcontent[*].value
+    - ObjectInfoSaves.$rcontent[*].ListRowResourcesData.$rcontent[*].miningFactor
+  ui_tabs:
+    - money
+    - faction_resources
+    - planet_resources
+
+CONCEPTS:
+  friendly_json_bridge:
+    definition: Temporary representation that makes non-standard save syntax parseable as JSON.
+  wrapped_value:
+    definition: Temporary key ($wrappedValue) used to model raw nullable value lines after load.
+  ois_chunk:
+    definition: One ListRowResourcesData block linked to planet/object id in ObjectInfoSaves.
+  merged_planet_rows:
+    definition: Flattened resource row list from all OIS chunks for a specific planet id.
+  dirty_state:
+    definition: UI flag showing unsaved local mutations.
+  deterministic_gzip:
+    definition: Save output compressed with fixed mtime for stable binary output.
+
+FACTS:
+  save_format:
+    statement: Save files are loaded from and written to gzip-compressed .json.gz archives.
+    confidence: authoritative
+  unity_tokens_present:
+    statement: Raw save text may contain tokens like $fstrref:"..." and $iref:N that are not valid JSON.
+    confidence: authoritative
+  nullable_mining_model:
+    statement: miningFactor may be numeric or null, represented internally via wrapped-value handling.
+    confidence: authoritative
+  duplicate_resource_rows_possible:
+    statement: Planet resources can contain multiple rows for same resource id and must keep per-row granularity.
+    confidence: authoritative
+  language_support:
+    statement: UI supports English and Russian with persisted language preference.
+    confidence: authoritative
+
+CONSTRAINTS:
+  - id: preserve_unity_tokens_roundtrip
+    priority: critical
+    rule: Conversion to/from friendly JSON must preserve semantic meaning of $fstrref and $iref tokens.
+  - id: preserve_non_edited_tree
+    priority: critical
+    rule: Fields outside explicit edit targets must remain unchanged after save.
+  - id: save_requires_loaded_root
+    priority: critical
+    rule: Save operation must not run when root data or selected file path is missing.
+  - id: mining_null_supported
+    priority: high
+    rule: miningFactor editor must support null and numeric values without type corruption.
+  - id: no_schema_reconstruction
+    priority: high
+    rule: Editor must mutate existing tree nodes instead of rebuilding save schema from scratch.
+  - id: numeric_input_validation
+    priority: high
+    rule: Money input must be parsed and validated; invalid strings must not overwrite model values.
+  - id: deterministic_compression
+    priority: medium
+    rule: Gzip write should use deterministic mtime to reduce output variance.
+
+DECISION_RULES:
+  parsing_strategy:
+    preferred: bridge_non_json_tokens_then_parse
+    rationale: Enables safe parsing of Unity/Json.NET-like payloads using standard json library.
+  edit_scope_strategy:
+    preferred: mutate_only_known_fields
+    rationale: Reduces risk of accidental structural damage in large heterogeneous save trees.
+  planet_resource_strategy:
+    preferred: merge_rows_from_all_chunks
+    rationale: UI must expose all rows even when a planet uses multiple ListRowResourcesData blocks.
+  save_strategy:
+    preferred: in_place_overwrite_same_file
+    rationale: Matches user workflow of editing selected save archive directly.
+
+PROCEDURES:
+  open_save_archive:
+    steps:
+      - select_file_from_saves_directory
+      - gzip_decompress
+      - convert_raw_tokens_to_friendly_placeholders
+      - inject_wrapped_values_for_json_validity
+      - parse_json_to_root_dict
+      - rebuild_tabs_from_root
+    expected_result:
+      root_loaded: true
+      dirty_state: false
+  edit_company_money:
+    steps:
+      - locate_companyDataSave_entries
+      - parse_text_input_to_numeric_or_inf_nan
+      - on_parse_success_update_money_field
+      - on_parse_failure_restore_previous_text
+      - set_dirty_true_after_valid_change
+    expected_result:
+      money_updated: true
+  edit_faction_resources:
+    steps:
+      - build_planet_faction_map_from_objectInfoDatas
+      - choose_planet_and_faction
+      - update_selected_row_value
+      - mirror_value_into_valueBeforeChange_if_present
+      - set_dirty_true
+    expected_result:
+      faction_rows_updated: true
+  edit_planet_resource_rows:
+    steps:
+      - collect_OIS_chunks_by_IDObjectInfo
+      - merge_rows_for_selected_planet
+      - update_value_and_miningFactor_per_row
+      - map_special_spin_value_to_null_for_miningFactor
+      - set_dirty_true
+    expected_result:
+      ois_rows_updated: true
+  save_archive:
+    steps:
+      - ensure_root_and_path_exist
+      - dump_json_with_allow_nan
+      - strip_wrapped_fields_to_original_like_layout
+      - restore_friendly_placeholders_to_unity_tokens
+      - gzip_compress_with_mtime_0
+      - write_bytes_to_selected_path
+      - set_dirty_false
+    expected_result:
+      save_written: true
+
+AGENT_BEHAVIOR:
+  before_editing_format_adapter:
+    verify:
+      - preserve_unity_tokens_roundtrip
+      - mining_null_supported
+      - deterministic_compression
+  before_editing_data_projection:
+    verify:
+      - preserve_non_edited_tree
+      - no_schema_reconstruction
+      - planet_resource_strategy
+  before_editing_ui:
+    verify:
+      - numeric_input_validation
+      - save_requires_loaded_root
+      - language_support
+  when_uncertain:
+    actions:
+      - inspect_unity_json_roundtrip_path
+      - prefer_field_mutation_over_tree_rebuild
+      - keep_behavior_backward_compatible_for_existing_saves
+
+ANTI_PATTERNS:
+  - mistake: Replacing full save root with a newly assembled dict.
+    why_wrong: Drops unknown fields and breaks long-term compatibility with game save evolution.
+    correction: Mutate only targeted existing nodes.
+  - mistake: Parsing raw save text with json.loads directly.
+    why_wrong: Raw payload can contain non-JSON constructs such as $fstrref and $iref.
+    correction: Apply friendly-token bridge and wrapped-value injection first.
+  - mistake: Treating miningFactor as always numeric.
+    why_wrong: Source saves can contain null nullable values.
+    correction: Preserve nullable semantics via wrapped value handling.
+  - mistake: Saving without validation on money field parse errors.
+    why_wrong: Invalid textual numbers can silently corrupt economic values.
+    correction: Reject invalid input and keep previous valid value.
+
+EXAMPLES:
+  valid_money_edit:
+    path: companyDataSave.$rcontent[0].money
+    value: Infinity
+  valid_ois_mining_edit:
+    path: ObjectInfoSaves.$rcontent[*].ListRowResourcesData.$rcontent[*].miningFactor
+    value: null
+  invalid_parse_path:
+    operation: direct_json_load_of_raw_text
+    reason: non_standard_unity_tokens_present
+  invalid_mutation_scope:
+    operation: regenerate_full_ObjectInfoSaves_array
+    reason: may_drop_unknown_rows_or_links
+
+REFERENCES:
+  EXTERNAL_SOURCES:
+    - https://github.com/dog729tools/Solar-Expanse-Save-Editor
+    - https://github.com/dog729tools/Solar-Expanse-Save-Editor/blob/main/README.md
+  DEPENDS_ON:
+    - ./SolarExpanse/Solar-Expanse-Save-Editor/README.md
+    - ./SolarExpanse/save_editor/main.py
+    - ./SolarExpanse/save_editor/save_model.py
+    - ./SolarExpanse/save_editor/unity_json.py
+  RELATED_CONSTRAINTS:
+    parsing_strategy:
+      - preserve_unity_tokens_roundtrip
+      - no_schema_reconstruction
+    edit_scope_strategy:
+      - preserve_non_edited_tree
+      - numeric_input_validation
+    save_strategy:
+      - save_requires_loaded_root
+      - deterministic_compression
+  RELATED_FACTS:
+    friendly_json_bridge:
+      - unity_tokens_present
+    merged_planet_rows:
+      - duplicate_resource_rows_possible
+    language_support:
+      - language_support
