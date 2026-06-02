@@ -1,19 +1,16 @@
 # Structured Agent Specs Research
 
-Этот репозиторий больше не про тезис **"YAML лучше Markdown"**.
-
 Текущий фокус:
 
 > Можно ли определить **стандарт semantic-контракта** (LSKC), который даёт агентам более предсказуемое поведение, чем обычные ad-hoc Markdown-инструкции.
-
-Ключевая идея из [`AgentSpecificationResearch.md`](AgentSpecificationResearch.md):
-сравнивать нужно не синтаксис (`.yaml` vs `.md`), а **качество и строгость контракта**.
 
 ## Что в репозитории
 
 ### 1) Исследовательская рамка
 
 - [`AgentSpecificationResearch.md`](AgentSpecificationResearch.md) — гипотезы, метрики, целевой дизайн экспериментов.
+Ключевая идея из [`AgentSpecificationResearch.md`](AgentSpecificationResearch.md):
+сравнивать нужно не синтаксис (`.yaml` vs `.md`), а **качество и строгость контракта**.
 
 ### 2) Новый стандарт
 
