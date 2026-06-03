@@ -12,18 +12,22 @@
 Ключевая идея из [`AgentSpecificationResearch.md`](AgentSpecificationResearch.md):
 сравнивать нужно не формат записи (`.yaml`/`.md`), а **семантику DSL и строгость контракта**.
 
-### 2) Новый стандарт
+### 2) Стандарт LSKC (отдельный репозиторий)
 
-- [`semantic_specification_standard/Standard.md`](semantic_specification_standard/Standard.md) — LSKC (семантические секции: FACTS, CONSTRAINTS, PROCEDURES и т.д.).
-- [`semantic_specification_standard/Proxy.md`](semantic_specification_standard/Proxy.md) — прокси-конвертер Markdown → LSKC.
-- [`semantic_specification_standard/lskc.schema.json`](semantic_specification_standard/lskc.schema.json) — machine-checkable схема для структурной валидации.
-- [`semantic_specification_standard/README.md`](semantic_specification_standard/README.md) — локальная документация стандарта и workflow.
-- [`semantic_specification_standard/example/`](semantic_specification_standard/example/) — примеры спецификаций DSL.
-  - [`ModuleSystem.yaml`](semantic_specification_standard/example/ModuleSystem.yaml)
-  - [`JSONSaveEditor.yaml`](semantic_specification_standard/example/JSONSaveEditor.yaml)
-  - [`DungeonRunner.yaml`](semantic_specification_standard/example/DungeonRunner.yaml)
-  - [`SolarExpanseSaveEditor.yaml`](semantic_specification_standard/example/SolarExpanseSaveEditor.yaml)
-  - [`WWMRussianLocalization.yaml`](semantic_specification_standard/example/WWMRussianLocalization.yaml)
+Нормативная спецификация и артефакты вынесены в [agent-specification-standard-lskc](https://github.com/DOG729/agent-specification-standard-lskc):
+
+- [Standard.md](https://github.com/DOG729/agent-specification-standard-lskc/blob/main/Standard.md) — LSKC (семантические секции: FACTS, CONSTRAINTS, PROCEDURES и т.д.).
+- [Proxy.md](https://github.com/DOG729/agent-specification-standard-lskc/blob/main/Proxy.md) — прокси-конвертер Markdown → LSKC.
+- [lskc.schema.json](https://github.com/DOG729/agent-specification-standard-lskc/blob/main/lskc.schema.json) — machine-checkable схема для структурной валидации.
+- [README](https://github.com/DOG729/agent-specification-standard-lskc/blob/main/README.md) — документация стандарта и workflow.
+- [example/](https://github.com/DOG729/agent-specification-standard-lskc/tree/main/example) — примеры спецификаций DSL.
+  - [ModuleSystem.yaml](https://github.com/DOG729/agent-specification-standard-lskc/blob/main/example/ModuleSystem.yaml)
+  - [JSONSaveEditor.yaml](https://github.com/DOG729/agent-specification-standard-lskc/blob/main/example/JSONSaveEditor.yaml)
+  - [DungeonRunner.yaml](https://github.com/DOG729/agent-specification-standard-lskc/blob/main/example/DungeonRunner.yaml)
+  - [SolarExpanseSaveEditor.yaml](https://github.com/DOG729/agent-specification-standard-lskc/blob/main/example/SolarExpanseSaveEditor.yaml)
+  - [WWMRussianLocalization.yaml](https://github.com/DOG729/agent-specification-standard-lskc/blob/main/example/WWMRussianLocalization.yaml)
+
+Локальная копия (если нужна для экспериментов) — в `semantic_specification_standard/`; в git этого репозитория она не отслеживается.
 
 ### 3) Предыдущие эксперименты (legacy baseline)
 
@@ -53,7 +57,7 @@
 |-------------|--------|
 | YAML vs MD как чистый формат | baseline-этап (вторично относительно DSL) |
 | Старые эксперименты | сохранены как baseline и обоснование pivot |
-| LSKC DSL | сформирован (v1), добавлена schema |
+| LSKC DSL | v1.1-draft, [отдельный репозиторий](https://github.com/DOG729/agent-specification-standard-lskc) |
 | Набор canonical examples | 5 доменов |
 | Валидация | структурная (JSON Schema) есть, семантическая — следующий этап |
 | Главная гипотеза | в работе, требует нового цикла agent-behavior тестов |
